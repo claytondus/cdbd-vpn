@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <net/if.h>
 #include <linux/if_tun.h>
@@ -22,6 +23,9 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <openssl/bio.h>
+#include <openssl/hmac.h>
+#include <openssl/err.h>
 
 /* buffer for reading from tun/tap interface, must be >= 1500 */
 #define BUFSIZE 2000
@@ -29,16 +33,25 @@
 #define SERVER 1
 #define PORT 55555
 
-
-//Represents a single tunnel, a unique local IP, remote IP tuple
-//TODO: Separate server socket allocation from tunnel definition
+//Interface and socket for tunnels
 typedef struct {
-  int fd;
-  struct sockaddr_in local, remote;
   char if_name[IFNAMSIZ];
-  unsigned long int net2tun, tun2net;
-  char remote_ip[16];            /* dotted quad IP string */
+  struct sockaddr_in local;
   unsigned short int port;
+  bool mode;
+  unsigned long int net2tun, tun2net;
+} udptun_sock;
+
+
+//Represents a single tunnel
+typedef struct {
+  bool admin_state;   //Shutdown / not shutdown
+  uint8_t id;
+  uint32_t spi;
+  unsigned long int net2tun, tun2net;
+  struct sockaddr_in remote;
+  char remote_ip[16];            /* dotted quad IP string */
+  unsigned short int remote_port;
   //Tunnel key
   //Tunnel IV
   //Encryption enabled
@@ -46,6 +59,6 @@ typedef struct {
   //State (UP, DOWN, UNKNOWN)
 } udptun_def;
 
-
+udptun_def defs[256];
 
 #endif /* INCLUDE_UDPTUN_H_ */

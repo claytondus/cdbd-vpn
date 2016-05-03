@@ -116,53 +116,34 @@ int read_n(int fd, char *buf, int n) {
 
 
 
-void udptun_init(udptun_def *def) {
+void udptun_init(udptun_sock *tun_sock) {
   
-  int tap_fd, option;
+  int tun_fd, option;
   int flags = IFF_TUN;
-  char if_name[IFNAMSIZ] = "";
   int maxfd;
-  uint16_t nread, nwrite, n_tunnel_id, tunnel_id;
+  uint16_t nread, nwrite;
   char buffer[BUFSIZE];
-  struct sockaddr_in local, remote;
-  char remote_ip[16] = "";            /* dotted quad IP string */
-  unsigned short int port = PORT;
   int sock_fd, net_fd, optval = 1;
-  socklen_t remotelen;
-  int cliserv = -1;    /* must be specified on cmd line */
-  unsigned long int tap2net = 0, net2tap = 0;
-
+  uint32_t spi, spi_n;
+  struct sockaddr_in recvd_ip;
+  socklen_t recvd_ip_len;
 
 
   /* initialize tun/tap interface */
-  if ( (tap_fd = tun_alloc(if_name, flags | IFF_NO_PI)) < 0 ) {
-    my_err("Error connecting to tun/tap interface %s!\n", if_name);
+  if ( (tun_fd = tun_alloc(tun_sock->if_name, flags | IFF_NO_PI)) < 0 ) {
+    my_err("Error connecting to tun/tap interface %s!\n", tun_sock->if_name);
     exit(1);
   }
 
-  do_debug("Successfully connected to interface %s\n", if_name);
+  do_debug("Successfully connected to interface %s\n", tun_sock->if_name);
 
   if ( (sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("socket()");
     exit(1);
   }
 
-  if(cliserv == CLIENT) {
-    /* Client, try to connect to server */
-
-    /* assign the destination address */
-    memset(&remote, 0, sizeof(remote));
-    remote.sin_family = AF_INET;
-    remote.sin_addr.s_addr = inet_addr(remote_ip);
-    remote.sin_port = htons(port);
-
-    //We aren't going to connect the socket, s/t server logic is simpler
-
-    net_fd = sock_fd;
-    do_debug("CLIENT: Connected to server %s\n", inet_ntoa(remote.sin_addr));
-    
-  } else {
-    /* Server, wait for packets */
+  if(tun_sock->mode == SERVER) {
+    /* Server, need to bind to receive packets */
 
     /* avoid EADDRINUSE error on bind() */
     if(setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
@@ -170,27 +151,28 @@ void udptun_init(udptun_def *def) {
       exit(1);
     }
     
-    memset(&local, 0, sizeof(local));
-    local.sin_family = AF_INET;
-    local.sin_addr.s_addr = htonl(INADDR_ANY);
-    local.sin_port = htons(port);
-    if (bind(sock_fd, (struct sockaddr*) &local, sizeof(local)) < 0) {
+    memset(&tun_sock->local, 0, sizeof(tun_sock->local));
+    tun_sock->local.sin_family = AF_INET;
+    tun_sock->local.sin_addr.s_addr = htonl(INADDR_ANY);
+    tun_sock->local.sin_port = htons(tun_sock->port);
+    if (bind(sock_fd, (struct sockaddr*) &tun_sock->local, sizeof(tun_sock->local)) < 0) {
       perror("bind()");
       exit(1);
     }
-    net_fd = sock_fd;
     
   }
   
+  net_fd = sock_fd;
+
   /* use select() to handle two descriptors at once */
-  maxfd = (tap_fd > net_fd)?tap_fd:net_fd;
+  maxfd = (tun_fd > net_fd)?tun_fd:net_fd;
 
   while(1) {
     int ret;
     fd_set rd_set;
 
     FD_ZERO(&rd_set);
-    FD_SET(tap_fd, &rd_set);
+    FD_SET(tun_fd, &rd_set);
     FD_SET(net_fd, &rd_set);
 
     ret = select(maxfd + 1, &rd_set, NULL, NULL, NULL);
@@ -204,57 +186,54 @@ void udptun_init(udptun_def *def) {
       exit(1);
     }
 
-    if(FD_ISSET(tap_fd, &rd_set)) {
+    if(FD_ISSET(tun_fd, &rd_set)) {
       /* data from tun/tap: read it, determine which tunnel it belongs to, and write it to the network */
       
       //tun: 1 read, 1 packet
-      nread = cread(tap_fd, buffer, BUFSIZE);
+      nread = cread(tun_fd, buffer, BUFSIZE);
 
-      tap2net++;
-      do_debug("TAP2NET %lu: Read %d bytes from the tap interface\n", tap2net, nread);
+      tun_sock->tun2net++;
+      do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock->tun2net, nread);
 
       //Figure out which tunnel this belongs to
-      tunnel_id = 1;
+      spi = 0xDEADBEEF; //TODO: Replace with actual SPI from udptun_def
 
-      //Encrypt-HMAC if necessary
+      //Set SPI, seq number
 
-      /* write length + packet */
-      //TODO: Use send_to to direct to correct destination (only on server)
-      n_tunnel_id = htons(tunnel_id);
-      nwrite = cwrite(net_fd, (char *)&n_tunnel_id, sizeof(n_tunnel_id));
-      nwrite = cwrite(net_fd, buffer, nread);
+      //Encrypt if necessary
+      //Calculate HMAC if necessary
+
+      /* write packet */
+      if ((nwrite = sendto(net_fd, buffer, BUFSIZE, 0, defs[0]->remote, sizeof(struct sockaddr_in))) == -1) {
+          perror("sendto");
+          exit(1);
+      }
       
-      do_debug("TAP2NET %lu: Written %d bytes to the network\n", tap2net, nwrite);
+      do_debug("TUN2NET %lu: Written %d bytes to the network\n", tun_sock->tun2net, nwrite);
     }
 
     if(FD_ISSET(net_fd, &rd_set)) {
       /* data from the network: read it, and write it to the tun/tap interface. 
-       * Packet will be prepended by a tunnel ID */
+       */
 
-
-      /* Read tunnel ID */
-      //TODO: Need to use recvfrom
-      nread = read_n(net_fd, (char *)&n_tunnel_id, sizeof(n_tunnel_id));
-      if(nread == 0) {
-        /* ctrl-c at the other end */
-        break;
-      }
-
-      net2tap++;
+      tun_sock->net2tun++;
 
       /* read packet */
-      //TODO: Still need to use recvfrom
-      nread = read_n(net_fd, buffer, ntohs(n_tunnel_id));
-      do_debug("NET2TAP %lu: Read %d bytes from the network\n", net2tap, nread);
+      if ((nread = recvfrom(net_fd, buffer, BUFSIZE, 0, (struct sockaddr *)&recvd_ip, &recvd_ip_len)) == -1) {
+          perror("recvfrom");
+          exit(1);
+      }
+      do_debug("NET2TUN %lu: Read %d bytes from the network\n", tun_sock->net2tun, nread);
 
+      //Get SPI, verify seq number
 
-
-      //Decrypt, verify HMAC if necessary
+      //Verify HMAC if necessary
+      //Decrypt if necessary
 
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
-      nwrite = cwrite(tap_fd, buffer, nread);
-      do_debug("NET2TAP %lu: Written %d bytes to the tap interface\n", net2tap, nwrite);
+      nwrite = cwrite(tun_fd, buffer, nread);
+      do_debug("NET2TUN %lu: Written %d bytes to the tap interface\n", tun_sock->net2tun, nwrite);
     }
   }
 

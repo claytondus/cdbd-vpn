@@ -20,6 +20,9 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "udptun.h"
 
 
@@ -47,6 +50,8 @@ void usage(void) {
 
 int main(int argc, char *argv[])
 {
+
+
   int tap_fd, option;
   int flags = IFF_TUN;
   char if_name[IFNAMSIZ] = "";
