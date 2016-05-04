@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
   progname = argv[0];
 
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:sc:p:hd")) > 0) {
+  while((option = getopt(argc, argv, "i:s:c:p:hd")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
 		break;
 	  case 's':
 		tun_sock.mode = SERVER;
+		strncpy(defs[0].remote_ip,optarg,15);
 		break;
 	  case 'c':
 		tun_sock.mode = CLIENT;

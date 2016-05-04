@@ -163,11 +163,12 @@ void udptun_init(udptun_sock *tun_sock) {
   } else {
     /*Client*/
 
-    defs[0].remote.sin_family = AF_INET;
-    defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
-    defs[0].remote.sin_port = htons(defs[0].remote_port);
   }
   
+  defs[0].remote.sin_family = AF_INET;
+  defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
+  defs[0].remote.sin_port = htons(defs[0].remote_port);
+
   net_fd = sock_fd;
 
   /* use select() to handle two descriptors at once */
@@ -211,7 +212,7 @@ void udptun_init(udptun_sock *tun_sock) {
       //Calculate HMAC if necessary
 
       /* write packet */
-      if ((nwrite = sendto(net_fd, buffer, BUFSIZE, 0, (const struct sockaddr *)&defs[0].remote,
+      if ((nwrite = sendto(net_fd, buffer, nread, 0, (const struct sockaddr *)&defs[0].remote,
 			   sizeof(defs[0].remote))) == -1) {
           perror("sendto");
           exit(1);
