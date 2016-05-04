@@ -24,11 +24,12 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include "udptun.h"
+#include "debug.h"
 
 
 char *progname;
 
-udptun_def tundef;
+udptun_sock tun_sock;
 
 /**************************************************************************
  * usage: prints usage and exits.                                         *
@@ -41,35 +42,27 @@ void usage(void) {
   fprintf(stderr, "-i <ifacename>: Name of interface to use (mandatory)\n");
   fprintf(stderr, "-s|-c <serverIP>: run in server mode (-s), or specify server address (-c <serverIP>) (mandatory)\n");
   fprintf(stderr, "-p <port>: port to listen on (if run in server mode) or to connect to (in client mode), default 55555\n");
-  fprintf(stderr, "-u|-a: use TUN (-u, default) or TAP (-a)\n");
   fprintf(stderr, "-d: outputs debug information while running\n");
   fprintf(stderr, "-h: prints this help text\n");
   exit(1);
 }
 
-
+#ifndef UNITY_FIXTURES
 int main(int argc, char *argv[])
 {
+  int option;
 
+  memset(&tun_sock, 0, sizeof(udptun_sock));
+  tun_sock.mode = -1;
+  tun_sock.port = PORT;
 
-  int tap_fd, option;
-  int flags = IFF_TUN;
-  char if_name[IFNAMSIZ] = "";
-  int maxfd;
-  uint16_t nread, nwrite, plength;
-  char buffer[BUFSIZE];
-  struct sockaddr_in local, remote;
-  char remote_ip[16] = "";            /* dotted quad IP string */
-  unsigned short int port = PORT;
-  int sock_fd, net_fd, optval = 1;
-  socklen_t remotelen;
-  int cliserv = -1;    /* must be specified on cmd line */
-  unsigned long int tap2net = 0, net2tap = 0;
+  memset(&defs, 0, 256*sizeof(udptun_def));
+  defs[0].remote_port = PORT;
 
   progname = argv[0];
 
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:sc:p:uahd")) > 0) {
+  while((option = getopt(argc, argv, "i:sc:p:hd")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -78,23 +71,18 @@ int main(int argc, char *argv[])
 		usage();
 		break;
 	  case 'i':
-		strncpy(if_name,optarg, IFNAMSIZ-1);
+		strncpy(tun_sock.if_name,optarg, IFNAMSIZ-1);
 		break;
 	  case 's':
-		cliserv = SERVER;
+		tun_sock.mode = SERVER;
 		break;
 	  case 'c':
-		cliserv = CLIENT;
-		strncpy(remote_ip,optarg,15);
+		tun_sock.mode = CLIENT;
+		strncpy(defs[0].remote_ip,optarg,15);
 		break;
 	  case 'p':
-		port = atoi(optarg);
-		break;
-	  case 'u':
-		flags = IFF_TUN;
-		break;
-	  case 'a':
-		flags = IFF_TAP;
+		defs[0].remote_port = atoi(optarg);
+		tun_sock.port = atoi(optarg);
 		break;
 	  default:
 		my_err("Unknown option %c\n", option);
@@ -110,16 +98,17 @@ int main(int argc, char *argv[])
 	usage();
   }
 
-  if(*if_name == '\0') {
+  if(*tun_sock.if_name == '\0') {
 	my_err("Must specify interface name!\n");
 	usage();
-  } else if(cliserv < 0) {
+  } else if(tun_sock.mode < 0) {
 	my_err("Must specify client or server mode!\n");
 	usage();
-  } else if((cliserv == CLIENT)&&(*remote_ip == '\0')) {
+  } else if((tun_sock.mode == CLIENT)&&(*defs[0].remote_ip == '\0')) {
 	my_err("Must specify server address!\n");
 	usage();
   }
 
-  udptun_init(&tundef);
+  udptun_init(&tun_sock);
 }
+#endif //UNITY_FIXTURES

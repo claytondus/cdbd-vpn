@@ -61,4 +61,6 @@ typedef struct {
 
 udptun_def defs[256];
 
+void udptun_init(udptun_sock* tun_sock);
+
 #endif /* INCLUDE_UDPTUN_H_ */

@@ -36,5 +36,9 @@
 
 #define check_debug(A, M, ...) if(!(A)) { debug(M, ##__VA_ARGS__); errno=0; goto error; }
 
+void do_debug(const char *msg, ...);
+void my_err(const char *msg, ...);
+
+int debug;
 
 #endif /* INCLUDE_DEBUG_H_ */

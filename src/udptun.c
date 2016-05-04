@@ -37,7 +37,7 @@ int tun_alloc(char *dev, int flags) {
 
   struct ifreq ifr;
   int fd, err;
-  char *clonedev = "/dev/net/tun";
+  const char *clonedev = "/dev/net/tun";
 
   if( (fd = open(clonedev , O_RDWR)) < 0 ) {
     perror("Opening /dev/net/tun");
@@ -118,13 +118,13 @@ int read_n(int fd, char *buf, int n) {
 
 void udptun_init(udptun_sock *tun_sock) {
   
-  int tun_fd, option;
+  int tun_fd;
   int flags = IFF_TUN;
   int maxfd;
-  uint16_t nread, nwrite;
+  int nread, nwrite;
   char buffer[BUFSIZE];
   int sock_fd, net_fd, optval = 1;
-  uint32_t spi, spi_n;
+  //uint32_t spi, spi_n;
   struct sockaddr_in recvd_ip;
   socklen_t recvd_ip_len;
 
@@ -160,6 +160,12 @@ void udptun_init(udptun_sock *tun_sock) {
       exit(1);
     }
     
+  } else {
+    /*Client*/
+
+    defs[0].remote.sin_family = AF_INET;
+    defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
+    defs[0].remote.sin_port = htons(defs[0].remote_port);
   }
   
   net_fd = sock_fd;
@@ -196,7 +202,8 @@ void udptun_init(udptun_sock *tun_sock) {
       do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock->tun2net, nread);
 
       //Figure out which tunnel this belongs to
-      spi = 0xDEADBEEF; //TODO: Replace with actual SPI from udptun_def
+      //spi = 0xDEADBEEF; //TODO: Replace with actual SPI from udptun_def
+      //spi_n = htonl(spi);
 
       //Set SPI, seq number
 
@@ -204,7 +211,8 @@ void udptun_init(udptun_sock *tun_sock) {
       //Calculate HMAC if necessary
 
       /* write packet */
-      if ((nwrite = sendto(net_fd, buffer, BUFSIZE, 0, defs[0]->remote, sizeof(struct sockaddr_in))) == -1) {
+      if ((nwrite = sendto(net_fd, buffer, BUFSIZE, 0, (const struct sockaddr *)&defs[0].remote,
+			   sizeof(defs[0].remote))) == -1) {
           perror("sendto");
           exit(1);
       }

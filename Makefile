@@ -25,31 +25,38 @@ CFLAGS += -Wstrict-prototypes
 CFLAGS += -Wundef
 CFLAGS += -Wold-style-definition
 
+
+TARGET = build/cdbd-vpn
+SRC_FILES=src/*.c
+INC_DIRS=-Isrc -Iinclude 
+LDFLAGS = `pkg-config --libs libssl`
+SYMBOLS = 
+
 TEST_TARGET = all_tests.o
-DEBUG_TARGET = 
 TEST_SRC_FILES=\
 $(UNITY_ROOT)/src/unity.c \
 $(UNITY_ROOT)/extras/fixture/src/unity_fixture.c \
 src/*.c \
 test/*.c \
 test/test_runners/*.c
-DEBUG_SRC_FILES=
 TEST_INC_DIRS=-Isrc -Iinclude -I$(UNITY_ROOT)/src -I$(UNITY_ROOT)/extras/fixture/src
-DEBUG_INC_DIRS=-Isrc -Iinclude 
-TEST_LDFLAGS = 
+TEST_LDFLAGS = `pkg-config --libs libssl`
 TEST_SYMBOLS=-DUNITY_FIXTURES
 
 .PHONY: clean test
 
 default:
 	mkdir -p build
-	$(C_COMPILER) -O2 -std=gnu11 $(DEBUG_INC_DIRS) $(DEBUG_SRC_FILES) -o build/cdbd-vpn -lm
+	$(C_COMPILER) -O2 -DNDEBUG $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET)
 
-all: debug test
+all: test default 
 
+debug:
+	mkdir -p build
+	$(C_COMPILER) -g -O0 $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET)
 	
 test:
-	$(C_COMPILER) -g -O0 $(CFLAGS) $(TEST_INC_DIRS) $(TEST_LDFLAGS) $(TEST_SYMBOLS) $(TEST_SRC_FILES)  -o test/$(TEST_TARGET) -lm
+	$(C_COMPILER) -g -O0 $(CFLAGS) $(TEST_INC_DIRS) $(TEST_LDFLAGS) $(TEST_SYMBOLS) $(TEST_SRC_FILES)  -o test/$(TEST_TARGET) 
 	./test/$(TEST_TARGET)
 
 clean:

@@ -25,7 +25,7 @@
 /**************************************************************************
  * do_debug: prints debugging stuff (doh!)                                *
  **************************************************************************/
-void do_debug(char *msg, ...){
+void do_debug(const char *msg, ...){
 
   va_list argp;
 
@@ -39,7 +39,7 @@ void do_debug(char *msg, ...){
 /**************************************************************************
  * my_err: prints custom error messages on stderr.                        *
  **************************************************************************/
-void my_err(char *msg, ...) {
+void my_err(const char *msg, ...) {
 
   va_list argp;
 
