@@ -26,12 +26,8 @@
 #include <openssl/bio.h>
 #include <openssl/hmac.h>
 #include <openssl/err.h>
+#include "conf.h"
 
-/* buffer for reading from tun/tap interface, must be >= 1500 */
-#define BUFSIZE 2000
-#define CLIENT 0
-#define SERVER 1
-#define PORT 55555
 
 //Interface and socket for tunnels
 typedef struct {
@@ -47,7 +43,8 @@ typedef struct {
 typedef struct {
   bool admin_state;   //Shutdown / not shutdown
   uint8_t id;
-  uint32_t spi;
+  uint32_t spi_local;
+  uint32_t spi_remote;
   unsigned long int net2tun, tun2net;
   struct sockaddr_in remote;
   char remote_ip[16];            /* dotted quad IP string */

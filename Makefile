@@ -29,7 +29,7 @@ CFLAGS += -Wold-style-definition
 TARGET = build/cdbd-vpn
 SRC_FILES=src/*.c
 INC_DIRS=-Isrc -Iinclude 
-LDFLAGS = `pkg-config --libs libssl`
+LDFLAGS = -lssl -lcrypto
 SYMBOLS = 
 
 TEST_TARGET = all_tests.o
@@ -40,14 +40,14 @@ src/*.c \
 test/*.c \
 test/test_runners/*.c
 TEST_INC_DIRS=-Isrc -Iinclude -I$(UNITY_ROOT)/src -I$(UNITY_ROOT)/extras/fixture/src
-TEST_LDFLAGS = `pkg-config --libs libssl`
+TEST_LDFLAGS = -lssl -lcrypto
 TEST_SYMBOLS=-DUNITY_FIXTURES
 
 .PHONY: clean test
 
 default:
 	mkdir -p build
-	$(C_COMPILER) -O2 -DNDEBUG $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET)
+	$(C_COMPILER) -O2 -DNDEBUG $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET) $(LDFLAGS)
 
 all: test default 
 
@@ -56,7 +56,7 @@ debug:
 	$(C_COMPILER) -g -O0 $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET)
 	
 test:
-	$(C_COMPILER) -g -O0 $(CFLAGS) $(TEST_INC_DIRS) $(TEST_LDFLAGS) $(TEST_SYMBOLS) $(TEST_SRC_FILES)  -o test/$(TEST_TARGET) 
+	$(C_COMPILER) -g -O0 $(CFLAGS) $(TEST_INC_DIRS) $(TEST_SYMBOLS) $(TEST_SRC_FILES)  -o test/$(TEST_TARGET) $(TEST_LDFLAGS)
 	./test/$(TEST_TARGET)
 
 clean:

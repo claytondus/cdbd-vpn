@@ -18,6 +18,7 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <openssl/bio.h>
@@ -110,6 +111,13 @@ int main(int argc, char *argv[])
 	usage();
   }
 
-  udptun_init(&tun_sock);
+  if(!fork()) {
+      //Child
+      udptun_init(&tun_sock);
+  } else {
+      //Parent
+      wait(NULL);
+  }
+
 }
 #endif //UNITY_FIXTURES

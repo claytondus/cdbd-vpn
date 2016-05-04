@@ -142,28 +142,21 @@ void udptun_init(udptun_sock *tun_sock) {
     exit(1);
   }
 
-  if(tun_sock->mode == SERVER) {
-    /* Server, need to bind to receive packets */
-
-    /* avoid EADDRINUSE error on bind() */
-    if(setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
-      perror("setsockopt()");
-      exit(1);
-    }
-    
-    memset(&tun_sock->local, 0, sizeof(tun_sock->local));
-    tun_sock->local.sin_family = AF_INET;
-    tun_sock->local.sin_addr.s_addr = htonl(INADDR_ANY);
-    tun_sock->local.sin_port = htons(tun_sock->port);
-    if (bind(sock_fd, (struct sockaddr*) &tun_sock->local, sizeof(tun_sock->local)) < 0) {
-      perror("bind()");
-      exit(1);
-    }
-    
-  } else {
-    /*Client*/
-
+  /* avoid EADDRINUSE error on bind() */
+  if(setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
+    perror("setsockopt()");
+    exit(1);
   }
+
+  memset(&tun_sock->local, 0, sizeof(tun_sock->local));
+  tun_sock->local.sin_family = AF_INET;
+  tun_sock->local.sin_addr.s_addr = htonl(INADDR_ANY);
+  tun_sock->local.sin_port = htons(tun_sock->port);
+  if (bind(sock_fd, (struct sockaddr*) &tun_sock->local, sizeof(tun_sock->local)) < 0) {
+    perror("bind()");
+    exit(1);
+  }
+
   
   defs[0].remote.sin_family = AF_INET;
   defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
