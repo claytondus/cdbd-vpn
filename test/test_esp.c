@@ -36,6 +36,7 @@ TEST(esp, EspCanEncode)
 
   /* Encrypt the plaintext */
   pkt_len = esp_encode(pkt, 0xDEADBEEF, 0x3240, plaintext, strlen ((char *)plaintext), key, iv);
+  TEST_ASSERT(pkt_len > 0);
 
   /* Do something useful with the ciphertext here */
   printf("Ciphertext is:\n");
@@ -47,7 +48,7 @@ TEST(esp, EspCanEncode)
 
   /* Decrypt the ciphertext */
   int success = esp_decode(pkt, pkt_len, &seq, dec, &dec_len, key, iv);
-  TEST_ASSERT(success >= 0);
+  TEST_ASSERT(success == 0);
 
   /* Add a NULL terminator. We are expecting printable text */
   dec[dec_len] = '\0';

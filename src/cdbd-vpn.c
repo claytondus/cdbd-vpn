@@ -118,8 +118,9 @@ int main(int argc, char *argv[])
   defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
   defs[0].remote.sin_port = htons(defs[0].remote_port);
   defs[0].spi = 0xDEADBEEF;
-  memcpy(&defs[0].key,"123456789abcdef",16);
-  memcpy(&defs[0].iv, "1234567",8);
+  defs[0].seq = 0;
+  memcpy(&defs[0].key,"01234567890123456789012345678901",32);
+  memcpy(&defs[0].iv, "01234567890123456",16);
   defs[0].encryption = true;
 
   if(!fork()) {

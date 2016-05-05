@@ -7,6 +7,7 @@
 
 
 #include "esp.h"
+#include "debug.h"
 
 typedef unsigned char byte;
 
@@ -286,7 +287,7 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
 
 int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t data_len, uint8_t* key, uint8_t* iv) {
 
-  int ciphertext_len, hmac_result, pktlen = 0;
+  int ciphertext_len, pktlen = 0;
   byte *sig_actual = NULL;
   byte **sig = &sig_actual;
   size_t slen = 0;
@@ -310,8 +311,8 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
   pktlen += ciphertext_len;
 
 
-  if((hmac_result = sha256_hmac_sign(pktp, pktlen, sig, &slen, pkey))) {
-      perror("sha256_hmac_sign");
+  if((sha256_hmac_sign(pktp, pktlen, sig, &slen, pkey))) {
+      do_debug("sha256_hmac_sign failed");
       return -1;
   }
   memcpy(pktp+pktlen, *sig, slen);
@@ -325,7 +326,7 @@ int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint
 
   int ciphertext_len = pktlen - 32 - 8; //SPI + sequence + HMAC
   int verify_len = pktlen - 32;
-  int hmac_result, index = 0;
+  int index = 0;
   uint32_t seq_n;
   EVP_PKEY* pkey;
 
@@ -339,8 +340,8 @@ int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint
   *seq = ntohl(seq_n);
   index += 4;
 
-  if((hmac_result = sha256_hmac_verify(pktp, verify_len, pktp+verify_len, 32, pkey))) {
-      perror("sha256_hmac_verify");
+  if((sha256_hmac_verify(pktp, verify_len, pktp+verify_len, 32, pkey))) {
+      do_debug("sha256_hmac_verify failed");
       return -1;
   }
 

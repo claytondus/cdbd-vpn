@@ -236,12 +236,12 @@ void udptun_init(udptun_sock *tun_sock) {
       seq = ntohl(seq_n);
 
       //TODO: Determine which tunnel this actually came from
-      do_debug("Received packet with SPI %x",spi);
+      do_debug("Received packet with SPI %x\n",spi);
       source_tun = &defs[0];
 
       //Verify sequence number
       if(seq < source_tun->seq) {
-	  do_debug("Replayed packet received");
+	  do_debug("Replayed packet received: got seq\n");
 	  continue;
       }
 
