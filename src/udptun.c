@@ -200,11 +200,11 @@ void udptun_init(udptun_sock *tun_sock) {
       //Set SPI, seq number
       //Encrypt
       //Calculate HMAC
-      if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
+      if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->local_seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
 	  do_debug("esp_encode failed\n");
 	  continue;
       }
-      dest_tun->seq++;
+      dest_tun->local_seq++;
 
       /* write packet */
       if ((nwrite = sendto(net_fd, tun_buffer, nencoded, 0, (const struct sockaddr *)&dest_tun->remote,
@@ -240,11 +240,11 @@ void udptun_init(udptun_sock *tun_sock) {
       source_tun = &defs[0];
 
       //Verify sequence number
-      if(seq < source_tun->seq) {
-	  do_debug("Replayed packet received: got seq %d expected %d\n",seq,source_tun->seq);
+      if(seq < source_tun->remote_seq) {
+	  do_debug("Replayed packet received: got seq %d expected %d\n",seq,source_tun->remote_seq);
 	  continue;
       }
-      source_tun->seq = seq;
+      source_tun->remote_seq = seq;
 
       //Verify HMAC
       //Decrypt

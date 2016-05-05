@@ -44,7 +44,7 @@ typedef struct {
   bool admin_state;   //Shutdown / not shutdown
   uint8_t id;
   uint32_t spi;
-  uint32_t seq;
+  uint32_t local_seq, remote_seq;
   unsigned long int net2tun, tun2net;
   struct sockaddr_in remote;
   char remote_ip[16];            /* dotted quad IP string */
