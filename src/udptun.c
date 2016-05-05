@@ -207,7 +207,7 @@ void udptun_init(udptun_sock *tun_sock) {
       dest_tun->seq++;
 
       /* write packet */
-      if ((nwrite = sendto(net_fd, tun_buffer, nread, 0, (const struct sockaddr *)&dest_tun->remote,
+      if ((nwrite = sendto(net_fd, tun_buffer, nencoded, 0, (const struct sockaddr *)&dest_tun->remote,
 			   sizeof(dest_tun->remote))) == -1) {
           perror("sendto");
           exit(1);
@@ -255,7 +255,7 @@ void udptun_init(udptun_sock *tun_sock) {
 
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
-      nwrite = cwrite(tun_fd, pkt_buffer, nread);
+      nwrite = cwrite(tun_fd, pkt_buffer, ndecoded);
       do_debug("NET2TUN %lu: Written %d bytes to the tap interface\n", tun_sock->net2tun, nwrite);
     }
   }
