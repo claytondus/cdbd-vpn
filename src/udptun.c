@@ -129,7 +129,7 @@ void udptun_init(udptun_sock *tun_sock) {
   udptun_def *dest_tun, *source_tun;
   uint32_t spi, seq, spi_n, seq_n;
   struct sockaddr_in recvd_ip;
-  socklen_t recvd_ip_len;
+  socklen_t recvd_ip_len = 0;
 
 
   /* initialize tun/tap interface */

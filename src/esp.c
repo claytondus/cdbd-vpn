@@ -344,7 +344,7 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
 
   if((sha256_hmac_sign(pktp, pktlen, sig, &slen, pkey))) {
       do_debug("sha256_hmac_sign failed\n");
-      return -1;
+      goto error;
   }
   memcpy(pktp+pktlen, *sig, slen);
   pktlen += slen;
@@ -354,8 +354,15 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
       BIO_dump_fp(stdout, (const char *)pktp, pktlen);
   }
 
+  EVP_PKEY_free(pkey);
+  OPENSSL_free(*sig);
 
   return pktlen;
+
+error:
+  if(pkey) EVP_PKEY_free(pkey);
+  if(*sig) OPENSSL_free(*sig);
+  return -1;
 
 }
 
@@ -384,12 +391,18 @@ int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint
 
   if((sha256_hmac_verify(pktp, verify_len, pktp+verify_len, 32, pkey))) {
       do_debug("sha256_hmac_verify failed\n");
-      return -1;
+      goto error;
   }
 
   *data_len = aes256_decrypt(pkt+index, ciphertext_len, key, iv, data);
 
+  EVP_PKEY_free(pkey);
+
   return 0;
+
+error:
+  if(pkey) EVP_PKEY_free(pkey);
+  return -1;
 }
 
 
