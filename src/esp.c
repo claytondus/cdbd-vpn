@@ -108,8 +108,10 @@ int sha256_hmac_sign(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP
         return -1;
     }
 
-    printf("Message to sign is:\n");
-    BIO_dump_fp(stdout, (const char *)msg, mlen);
+    if(debug) {
+	printf("Message to sign is:\n");
+	BIO_dump_fp(stdout, (const char *)msg, mlen);
+    }
 
     if(*sig)
         OPENSSL_free(*sig);
@@ -190,8 +192,10 @@ int sha256_hmac_sign(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP
             printf("EVP_DigestSignFinal failed, mismatched signature sizes %ld, %ld", req, *slen);
             break; /* failed */
         }
-        printf("Signature is:\n");
-        BIO_dump_fp(stdout, (const char *)*sig, *slen);
+        if(debug) {
+            printf("Signature is:\n");
+            BIO_dump_fp(stdout, (const char *)*sig, *slen);
+        }
 
         result = 0;
 
@@ -216,10 +220,13 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
         assert(0);
         return -1;
     }
-    printf("Signature to verify is:\n");
-    BIO_dump_fp(stdout, (const char *)sig, slen);
-    printf("Message to verify is:\n");
-    BIO_dump_fp(stdout, (const char *)msg, mlen);
+
+    if(debug) {
+      printf("Signature to verify is:\n");
+      BIO_dump_fp(stdout, (const char *)sig, slen);
+      printf("Message to verify is:\n");
+      BIO_dump_fp(stdout, (const char *)msg, mlen);
+    }
 
 
     EVP_MD_CTX* ctx = NULL;
@@ -277,14 +284,16 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
             break; /* failed */
         }
 
-        printf("Signature generated is:\n");
-	BIO_dump_fp(stdout, (const char *)&buff, size);
+        if(debug) {
+            printf("Signature generated is:\n");
+            BIO_dump_fp(stdout, (const char *)&buff, size);
+        }
 
 
         const size_t m = (slen < size ? slen : size);
         result = !!CRYPTO_memcmp(sig, buff, m);
 
-        if(result) {
+        if(debug && result) {
             printf("Signature is BAD\n");
         } else {
             printf("Signature is GOOD\n");
@@ -337,8 +346,11 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
   }
   memcpy(pktp+pktlen, *sig, slen);
   pktlen += slen;
-  printf("ESP to send is:\n");
-  BIO_dump_fp(stdout, (const char *)pktp, pktlen);
+
+  if(debug) {
+      printf("ESP to send is:\n");
+      BIO_dump_fp(stdout, (const char *)pktp, pktlen);
+  }
 
 
   return pktlen;
@@ -357,8 +369,10 @@ int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint
 
   memset(data, 0, BUFSIZE);
 
-  printf("ESP to process is:\n");
-  BIO_dump_fp(stdout, (const char *)pkt, pktlen);
+  if(debug) {
+      printf("ESP to process is:\n");
+      BIO_dump_fp(stdout, (const char *)pkt, pktlen);
+  }
 
   uint8_t* pktp = pkt;
   index += 4;
