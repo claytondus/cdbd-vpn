@@ -293,10 +293,12 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
         const size_t m = (slen < size ? slen : size);
         result = !!CRYPTO_memcmp(sig, buff, m);
 
-        if(debug && result) {
-            printf("Signature is BAD\n");
-        } else {
-            printf("Signature is GOOD\n");
+        if(debug) {
+	  if(result) {
+	      printf("Signature is BAD\n");
+	  } else {
+	      printf("Signature is GOOD\n");
+	  }
         }
 
         OPENSSL_cleanse(buff, sizeof(buff));
