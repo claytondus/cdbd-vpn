@@ -201,8 +201,8 @@ void udptun_init(udptun_sock *tun_sock) {
       //Encrypt
       //Calculate HMAC
       if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
-	  perror("esp_encode");
-	  exit(1);
+	  do_debug("esp_encode failed\n");
+	  continue;
       }
       dest_tun->seq++;
 
@@ -241,17 +241,18 @@ void udptun_init(udptun_sock *tun_sock) {
 
       //Verify sequence number
       if(seq < source_tun->seq) {
-	  do_debug("Replayed packet received: got seq\n");
+	  do_debug("Replayed packet received: got seq %d expected %d\n",seq,source_tun->seq);
 	  continue;
       }
+      source_tun->seq = seq;
 
       //Verify HMAC
       //Decrypt
-      if((esp_decode(tun_buffer, nread, &seq_n, pkt_buffer, &ndecoded, dest_tun->key, dest_tun->iv)) < 0) {
-	  perror("esp_encode");
-	  exit(1);
+      if((esp_decode(tun_buffer, nread, &seq_n, pkt_buffer, &ndecoded, source_tun->key, source_tun->iv)) < 0) {
+	  do_debug("esp_decode failed\n");
+	  continue;
       }
-      dest_tun->seq++;
+
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
       nwrite = cwrite(tun_fd, pkt_buffer, nread);

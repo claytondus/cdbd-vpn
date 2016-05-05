@@ -108,6 +108,9 @@ int sha256_hmac_sign(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP
         return -1;
     }
 
+    printf("Message to sign is:\n");
+    BIO_dump_fp(stdout, (const char *)msg, mlen);
+
     if(*sig)
         OPENSSL_free(*sig);
 
@@ -187,6 +190,8 @@ int sha256_hmac_sign(const byte* msg, size_t mlen, byte** sig, size_t* slen, EVP
             printf("EVP_DigestSignFinal failed, mismatched signature sizes %ld, %ld", req, *slen);
             break; /* failed */
         }
+        printf("Signature is:\n");
+        BIO_dump_fp(stdout, (const char *)*sig, *slen);
 
         result = 0;
 
@@ -211,6 +216,11 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
         assert(0);
         return -1;
     }
+    printf("Signature to verify is:\n");
+    BIO_dump_fp(stdout, (const char *)sig, slen);
+    printf("Message to verify is:\n");
+    BIO_dump_fp(stdout, (const char *)msg, mlen);
+
 
     EVP_MD_CTX* ctx = NULL;
 
@@ -267,8 +277,18 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
             break; /* failed */
         }
 
+        printf("Signature generated is:\n");
+	BIO_dump_fp(stdout, (const char *)&buff, size);
+
+
         const size_t m = (slen < size ? slen : size);
         result = !!CRYPTO_memcmp(sig, buff, m);
+
+        if(result) {
+            printf("Signature is BAD\n");
+        } else {
+            printf("Signature is GOOD\n");
+        }
 
         OPENSSL_cleanse(buff, sizeof(buff));
 
@@ -312,7 +332,7 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
 
 
   if((sha256_hmac_sign(pktp, pktlen, sig, &slen, pkey))) {
-      do_debug("sha256_hmac_sign failed");
+      do_debug("sha256_hmac_sign failed\n");
       return -1;
   }
   memcpy(pktp+pktlen, *sig, slen);
@@ -341,7 +361,7 @@ int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint
   index += 4;
 
   if((sha256_hmac_verify(pktp, verify_len, pktp+verify_len, 32, pkey))) {
-      do_debug("sha256_hmac_verify failed");
+      do_debug("sha256_hmac_verify failed\n");
       return -1;
   }
 

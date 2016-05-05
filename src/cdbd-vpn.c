@@ -123,16 +123,16 @@ int main(int argc, char *argv[])
   memcpy(&defs[0].iv, "01234567890123456",16);
   defs[0].encryption = true;
 
-  if(!fork()) {
+  //if(!fork()) {
       //Child
       ERR_load_crypto_strings();
       OpenSSL_add_all_algorithms();
       OPENSSL_config(NULL);
       udptun_init(&tun_sock);
-  } else {
+  //} else {
       //Parent
-      wait(NULL);
-  }
+  //    wait(NULL);
+  //}
 
 }
 #endif //UNITY_FIXTURES

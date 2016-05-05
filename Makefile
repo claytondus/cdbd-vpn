@@ -53,7 +53,7 @@ all: test default
 
 debug:
 	mkdir -p build
-	$(C_COMPILER) -g -O0 $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET)
+	$(C_COMPILER) -g -O0 $(CFLAGS) $(INC_DIRS) $(SRC_FILES) -o $(TARGET) $(LDFLAGS)
 	
 test:
 	$(C_COMPILER) -g -O0 $(CFLAGS) $(TEST_INC_DIRS) $(TEST_SYMBOLS) $(TEST_SRC_FILES)  -o test/$(TEST_TARGET) $(TEST_LDFLAGS)
