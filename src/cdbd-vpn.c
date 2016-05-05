@@ -24,6 +24,9 @@
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+#include <openssl/conf.h>
 #include "udptun.h"
 #include "debug.h"
 
@@ -111,8 +114,19 @@ int main(int argc, char *argv[])
 	usage();
   }
 
+  defs[0].remote.sin_family = AF_INET;
+  defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
+  defs[0].remote.sin_port = htons(defs[0].remote_port);
+  defs[0].spi = 0xDEADBEEF;
+  memcpy(&defs[0].key,"123456789abcdef",16);
+  memcpy(&defs[0].iv, "1234567",8);
+  defs[0].encryption = true;
+
   if(!fork()) {
       //Child
+      ERR_load_crypto_strings();
+      OpenSSL_add_all_algorithms();
+      OPENSSL_config(NULL);
       udptun_init(&tun_sock);
   } else {
       //Parent

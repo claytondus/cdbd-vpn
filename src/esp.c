@@ -287,30 +287,35 @@ int sha256_hmac_verify(const byte* msg, size_t mlen, const byte* sig, size_t sle
 int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t data_len, uint8_t* key, uint8_t* iv) {
 
   int ciphertext_len, hmac_result, pktlen = 0;
-  byte** sig = NULL;
-  size_t* slen = 0;
+  byte *sig_actual = NULL;
+  byte **sig = &sig_actual;
+  size_t slen = 0;
   EVP_PKEY* pkey;
+  uint32_t spi_n, seq_n;
 
-  pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key, 256);
+  spi_n = htonl(spi);
+  seq_n = htonl(seq);
+
+  pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key, 32);
 
   memset(pkt, 0, BUFSIZE);
 
   uint8_t* pktp = pkt;
-  memcpy(pktp, &spi, 4);
+  memcpy(pktp, &spi_n, 4);
   pktlen += 4;
-  memcpy(pktp+pktlen, &seq, 4);
+  memcpy(pktp+pktlen, &seq_n, 4);
   pktlen += 4;
 
   ciphertext_len = aes256_encrypt(data, data_len, key, iv, pktp+pktlen);
   pktlen += ciphertext_len;
 
 
-  if((hmac_result = sha256_hmac_sign(pktp, pktlen, sig, slen, pkey))) {
+  if((hmac_result = sha256_hmac_sign(pktp, pktlen, sig, &slen, pkey))) {
       perror("sha256_hmac_sign");
       return -1;
   }
-  memcpy(pktp+pktlen, *sig, *slen);
-  pktlen += *slen;
+  memcpy(pktp+pktlen, *sig, slen);
+  pktlen += slen;
 
   return pktlen;
 
@@ -318,27 +323,28 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
 
 int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint16_t* data_len, uint8_t* key, uint8_t* iv) {
 
-  int ciphertext_len = pktlen - 264; //SPI + sequence + HMAC
-  int verify_len = pktlen - 256;
+  int ciphertext_len = pktlen - 32 - 8; //SPI + sequence + HMAC
+  int verify_len = pktlen - 32;
   int hmac_result, index = 0;
-
+  uint32_t seq_n;
   EVP_PKEY* pkey;
 
-  pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key, 256);
+  pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key, 32);
 
   memset(data, 0, BUFSIZE);
 
   uint8_t* pktp = pkt;
   index += 4;
-  memcpy(pktp+index, &seq, 4);
+  memcpy(&seq_n, pktp+index, 4);
+  *seq = ntohl(seq_n);
   index += 4;
 
-  if((hmac_result = sha256_hmac_verify(pktp, verify_len, pktp+verify_len, 256, pkey))) {
+  if((hmac_result = sha256_hmac_verify(pktp, verify_len, pktp+verify_len, 32, pkey))) {
       perror("sha256_hmac_verify");
       return -1;
   }
 
-  *data_len = aes256_decrypt(pkt+8, ciphertext_len, key, iv, data);
+  *data_len = aes256_decrypt(pkt+index, ciphertext_len, key, iv, data);
 
   return 0;
 }

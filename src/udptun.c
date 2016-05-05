@@ -25,6 +25,7 @@
 
 #include "debug.h"
 #include "udptun.h"
+#include "esp.h"
 
 
 int debug;
@@ -67,7 +68,7 @@ int tun_alloc(char *dev, int flags) {
  * cread: read routine that checks for errors and exits if an error is    *
  *        returned.                                                       *
  **************************************************************************/
-int cread(int fd, char *buf, int n){
+int cread(int fd, uint8_t *buf, int n){
   
   int nread;
 
@@ -82,7 +83,7 @@ int cread(int fd, char *buf, int n){
  * cwrite: write routine that checks for errors and exits if an error is  *
  *         returned.                                                      *
  **************************************************************************/
-int cwrite(int fd, char *buf, int n){
+int cwrite(int fd, uint8_t *buf, int n){
   
   int nwrite;
 
@@ -97,7 +98,7 @@ int cwrite(int fd, char *buf, int n){
  * read_n: ensures we read exactly n bytes, and puts them into "buf".     *
  *         (unless EOF, of course)                                        *
  **************************************************************************/
-int read_n(int fd, char *buf, int n) {
+int read_n(int fd, uint8_t *buf, int n) {
 
   int nread, left = n;
 
@@ -121,10 +122,12 @@ void udptun_init(udptun_sock *tun_sock) {
   int tun_fd;
   int flags = IFF_TUN;
   int maxfd;
-  int nread, nwrite;
-  char buffer[BUFSIZE];
+  int nread, nwrite, nencoded;
+  uint16_t ndecoded;
+  uint8_t tun_buffer[BUFSIZE], pkt_buffer[BUFSIZE];
   int sock_fd, net_fd, optval = 1;
-  //uint32_t spi, spi_n;
+  udptun_def *dest_tun, *source_tun;
+  uint32_t spi, seq, spi_n, seq_n;
   struct sockaddr_in recvd_ip;
   socklen_t recvd_ip_len;
 
@@ -157,10 +160,6 @@ void udptun_init(udptun_sock *tun_sock) {
     exit(1);
   }
 
-  
-  defs[0].remote.sin_family = AF_INET;
-  defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
-  defs[0].remote.sin_port = htons(defs[0].remote_port);
 
   net_fd = sock_fd;
 
@@ -190,23 +189,26 @@ void udptun_init(udptun_sock *tun_sock) {
       /* data from tun/tap: read it, determine which tunnel it belongs to, and write it to the network */
       
       //tun: 1 read, 1 packet
-      nread = cread(tun_fd, buffer, BUFSIZE);
+      nread = cread(tun_fd, pkt_buffer, BUFSIZE);
 
       tun_sock->tun2net++;
       do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock->tun2net, nread);
 
       //Figure out which tunnel this belongs to
-      //spi = 0xDEADBEEF; //TODO: Replace with actual SPI from udptun_def
-      //spi_n = htonl(spi);
+      dest_tun = &defs[0];
 
       //Set SPI, seq number
-
-      //Encrypt if necessary
-      //Calculate HMAC if necessary
+      //Encrypt
+      //Calculate HMAC
+      if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
+	  perror("esp_encode");
+	  exit(1);
+      }
+      dest_tun->seq++;
 
       /* write packet */
-      if ((nwrite = sendto(net_fd, buffer, nread, 0, (const struct sockaddr *)&defs[0].remote,
-			   sizeof(defs[0].remote))) == -1) {
+      if ((nwrite = sendto(net_fd, tun_buffer, nread, 0, (const struct sockaddr *)&dest_tun->remote,
+			   sizeof(dest_tun->remote))) == -1) {
           perror("sendto");
           exit(1);
       }
@@ -221,20 +223,38 @@ void udptun_init(udptun_sock *tun_sock) {
       tun_sock->net2tun++;
 
       /* read packet */
-      if ((nread = recvfrom(net_fd, buffer, BUFSIZE, 0, (struct sockaddr *)&recvd_ip, &recvd_ip_len)) == -1) {
+      if ((nread = recvfrom(net_fd, tun_buffer, BUFSIZE, 0, (struct sockaddr *)&recvd_ip, &recvd_ip_len)) == -1) {
           perror("recvfrom");
           exit(1);
       }
       do_debug("NET2TUN %lu: Read %d bytes from the network\n", tun_sock->net2tun, nread);
 
       //Get SPI, verify seq number
+      memcpy(&spi_n, tun_buffer, 4);
+      spi = ntohl(spi_n);
+      memcpy(&seq_n, tun_buffer+4, 4);
+      seq = ntohl(seq_n);
 
-      //Verify HMAC if necessary
-      //Decrypt if necessary
+      //TODO: Determine which tunnel this actually came from
+      do_debug("Received packet with SPI %x",spi);
+      source_tun = &defs[0];
 
+      //Verify sequence number
+      if(seq < source_tun->seq) {
+	  do_debug("Replayed packet received");
+	  continue;
+      }
+
+      //Verify HMAC
+      //Decrypt
+      if((esp_decode(tun_buffer, nread, &seq_n, pkt_buffer, &ndecoded, dest_tun->key, dest_tun->iv)) < 0) {
+	  perror("esp_encode");
+	  exit(1);
+      }
+      dest_tun->seq++;
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
-      nwrite = cwrite(tun_fd, buffer, nread);
+      nwrite = cwrite(tun_fd, pkt_buffer, nread);
       do_debug("NET2TUN %lu: Written %d bytes to the tap interface\n", tun_sock->net2tun, nwrite);
     }
   }

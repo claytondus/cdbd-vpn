@@ -43,15 +43,15 @@ typedef struct {
 typedef struct {
   bool admin_state;   //Shutdown / not shutdown
   uint8_t id;
-  uint32_t spi_local;
-  uint32_t spi_remote;
+  uint32_t spi;
+  uint32_t seq;
   unsigned long int net2tun, tun2net;
   struct sockaddr_in remote;
   char remote_ip[16];            /* dotted quad IP string */
   unsigned short int remote_port;
-  //Tunnel key
-  //Tunnel IV
-  //Encryption enabled
+  uint8_t key[32];  //256 bit
+  uint8_t iv[16];   //128 bit
+  bool encryption;
   //Keepalive interval
   //State (UP, DOWN, UNKNOWN)
 } udptun_def;
