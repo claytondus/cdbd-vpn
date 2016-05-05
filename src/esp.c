@@ -337,6 +337,9 @@ int esp_encode(uint8_t* pkt, uint32_t spi, uint32_t seq, uint8_t* data, uint16_t
   }
   memcpy(pktp+pktlen, *sig, slen);
   pktlen += slen;
+  printf("ESP to send is:\n");
+  BIO_dump_fp(stdout, (const char *)pktp, pktlen);
+
 
   return pktlen;
 
@@ -353,6 +356,9 @@ int esp_decode(uint8_t* pkt, uint16_t pktlen, uint32_t* seq, uint8_t* data, uint
   pkey = EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, NULL, key, 32);
 
   memset(data, 0, BUFSIZE);
+
+  printf("ESP to process is:\n");
+  BIO_dump_fp(stdout, (const char *)pkt, pktlen);
 
   uint8_t* pktp = pkt;
   index += 4;
