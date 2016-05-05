@@ -48,6 +48,27 @@ void usage(void) {
   exit(1);
 }
 
+char **configTun(char *confile) {
+  int fp;
+  int done = 0; int i;
+  char *line; char **confStuff;
+  ssize_t read; size_t len = 0;
+
+  fp = fopen(confile, "r");
+  if(fp == NULL) {done = 1;}
+
+  if(done != 1) {
+	while((read = getline(&line, &len, fp) != -1)) {
+      for(i = 0; i < 3; i++;) {
+		confStuff[i] = (char *) malloc(sizeof(char)*sizeof(line) + 1);
+	    strcpy(confStuff[i], line);
+	  }
+	  if(i >=3) break;
+	}
+  } return confStuff;
+}
+
+
 #ifndef UNITY_FIXTURES
 int main(int argc, char *argv[])
 {
@@ -62,8 +83,11 @@ int main(int argc, char *argv[])
 
   progname = argv[0];
 
+  /* Check for a config file and read if applicable. */
+  
+
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:s:c:p:hd")) > 0) {
+  while((option = getopt(argc, argv, "i:s:c:p:hd:f")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -86,6 +110,10 @@ int main(int argc, char *argv[])
 		defs[0].remote_port = atoi(optarg);
 		tun_sock.port = atoi(optarg);
 		break;
+	  case 'f':
+	        char **confStuff;
+	        confStuff = configTun("set.cnf");
+	        break;
 	  default:
 		my_err("Unknown option %c\n", option);
 		usage();
