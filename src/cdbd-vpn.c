@@ -72,8 +72,9 @@ char **configTun(char *confile) {
 #ifndef UNITY_FIXTURES
 int main(int argc, char *argv[])
 {
-  int option;
-
+  int option, ka;    /* command line options, keepalive flag */
+  char **confOpts;
+  char *certloc; char *route;
   memset(&tun_sock, 0, sizeof(udptun_sock));
   tun_sock.mode = -1;
   tun_sock.port = PORT;
@@ -83,11 +84,8 @@ int main(int argc, char *argv[])
 
   progname = argv[0];
 
-  /* Check for a config file and read if applicable. */
-  
-
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:s:c:p:hd:f")) > 0) {
+  while((option = getopt(argc, argv, "i:s:c:p:hd")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -110,9 +108,11 @@ int main(int argc, char *argv[])
 		defs[0].remote_port = atoi(optarg);
 		tun_sock.port = atoi(optarg);
 		break;
-	  case 'f':
-	        char **confStuff;
-	        confStuff = configTun("set.cnf");
+      case 'f':
+	    confOpts = configTun("set.cnf");
+		certloc = (char *) malloc(sizeof(confOpts[0] + 1);
+		route = (char *) malloc(sizeof(confOpts[1] + 1);
+		ka = atoi(confOpts[2]);
 	        break;
 	  default:
 		my_err("Unknown option %c\n", option);
