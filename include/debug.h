@@ -1,13 +1,4 @@
-/*
- * debug.h
- *
- *  Created on: Feb 28, 2016
- *      Author: http://c.learncodethehardway.org/book/ex20.html
- *      		Zed's Awesome Debug Macros
- */
-
-#ifndef INCLUDE_DEBUG_H_
-#define INCLUDE_DEBUG_H_
+#pragma once
 
 #include <stdio.h>
 #include <errno.h>
@@ -41,4 +32,3 @@ void my_err(const char *msg, ...);
 
 int debug;
 
-#endif /* INCLUDE_DEBUG_H_ */

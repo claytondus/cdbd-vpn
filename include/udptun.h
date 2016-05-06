@@ -1,10 +1,4 @@
-/*
- * udptun.h
- *
- */
-
-#ifndef INCLUDE_UDPTUN_H_
-#define INCLUDE_UDPTUN_H_
+#pragma once
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +7,7 @@
 #include <unistd.h>
 #include <net/if.h>
 #include <linux/if_tun.h>
-#include <semaphore.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -59,10 +53,15 @@ typedef struct {
   uint8_t key[32];  //256 bit
   uint8_t iv[16];   //128 bit
   bool encryption;
-  //Keepalive interval
+  char* route;
+  bool ka;
   //State (UP, DOWN, UNKNOWN)
 } udptun_def;
 
-void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udptun_route *routes);
+udptun_sock tun_sock;
+pthread_mutex_t *defs_lock;
+udptun_def *defs;
+udptun_route *routes;
 
-#endif /* INCLUDE_UDPTUN_H_ */
+void* udptun_init(void*);
+

@@ -28,7 +28,6 @@
 #include "esp.h"
 
 
-int debug;
 
 /**************************************************************************
  * tun_alloc: allocates or reconnects to a tun/tap device. The caller     *
@@ -155,7 +154,7 @@ int udptun_lookup_spi(uint32_t spi, udptun_def *defs) {
 }
 
 
-void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udptun_route *routes) {
+void* udptun_init(void* pt_data __attribute__((unused))) {
   
   int tun_fd;
   int flags = IFF_TUN;
@@ -173,12 +172,12 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
 
 
   /* initialize tun/tap interface */
-  if ( (tun_fd = tun_alloc(tun_sock->if_name, flags | IFF_NO_PI)) < 0 ) {
-    my_err("Error connecting to tun/tap interface %s!\n", tun_sock->if_name);
+  if ( (tun_fd = tun_alloc(tun_sock.if_name, flags | IFF_NO_PI)) < 0 ) {
+    my_err("Error connecting to tun/tap interface %s!\n", tun_sock.if_name);
     exit(1);
   }
 
-  do_debug("Successfully connected to interface %s\n", tun_sock->if_name);
+  do_debug("Successfully connected to interface %s\n", tun_sock.if_name);
 
   if ( (sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("socket()");
@@ -191,11 +190,11 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
     exit(1);
   }
 
-  memset(&tun_sock->local, 0, sizeof(tun_sock->local));
-  tun_sock->local.sin_family = AF_INET;
-  tun_sock->local.sin_addr.s_addr = htonl(INADDR_ANY);
-  tun_sock->local.sin_port = htons(tun_sock->port);
-  if (bind(sock_fd, (struct sockaddr*) &tun_sock->local, sizeof(tun_sock->local)) < 0) {
+  memset(&tun_sock.local, 0, sizeof(tun_sock.local));
+  tun_sock.local.sin_family = AF_INET;
+  tun_sock.local.sin_addr.s_addr = htonl(INADDR_ANY);
+  tun_sock.local.sin_port = htons(tun_sock.port);
+  if (bind(sock_fd, (struct sockaddr*) &tun_sock.local, sizeof(tun_sock.local)) < 0) {
     perror("bind()");
     exit(1);
   }
@@ -231,16 +230,16 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
       //tun: 1 read, 1 packet
       nread = cread(tun_fd, pkt_buffer, BUFSIZE);
 
-      tun_sock->tun2net++;
-      do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock->tun2net, nread);
+      tun_sock.tun2net++;
+      do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock.tun2net, nread);
 
       //Figure out which tunnel this belongs to
-      sem_wait(defs_lock);
-      if(tun_sock->mode == SERVER) {
+      pthread_mutex_lock(defs_lock);
+      if(tun_sock.mode == SERVER) {
 	  if((tun_index = udptun_route_packet(pkt_buffer, routes)) > 0) {
 	      dest_tun = &defs[tun_index];
 	  } else {
-	      sem_post(defs_lock);
+	      pthread_mutex_unlock(defs_lock);
 	      continue;
 	  }
       } else {
@@ -252,7 +251,7 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
       //Calculate HMAC
       if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->local_seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
 	  do_debug("esp_encode failed\n");
-	  sem_post(defs_lock);
+	  pthread_mutex_unlock(defs_lock);
 	  continue;
       }
       dest_tun->local_seq++;
@@ -263,23 +262,23 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
           perror("sendto");
           exit(1);
       }
-      sem_post(defs_lock);
+      pthread_mutex_unlock(defs_lock);
       
-      do_debug("TUN2NET %lu: Written %d bytes to the network\n", tun_sock->tun2net, nwrite);
+      do_debug("TUN2NET %lu: Written %d bytes to the network\n", tun_sock.tun2net, nwrite);
     }
 
     if(FD_ISSET(net_fd, &rd_set)) {
       /* data from the network: read it, and write it to the tun/tap interface. 
        */
 
-      tun_sock->net2tun++;
+      tun_sock.net2tun++;
 
       /* read packet */
       if ((nread = recvfrom(net_fd, tun_buffer, BUFSIZE, 0, (struct sockaddr *)&recvd_ip, &recvd_ip_len)) == -1) {
           perror("recvfrom");
           exit(1);
       }
-      do_debug("NET2TUN %lu: Read %d bytes from the network\n", tun_sock->net2tun, nread);
+      do_debug("NET2TUN %lu: Read %d bytes from the network\n", tun_sock.net2tun, nread);
 
       //Get SPI, verify seq number
       memcpy(&spi_n, tun_buffer, 4);
@@ -289,14 +288,14 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
 
 
       do_debug("Received packet with SPI %x\n",spi);
-      sem_wait(defs_lock);
+      pthread_mutex_lock(defs_lock);
 
       //Look up tunnel
-      if(tun_sock->mode == SERVER) {
+      if(tun_sock.mode == SERVER) {
 	  if((tun_index = udptun_lookup_spi(spi, defs)) > 0) {
 	      source_tun = &defs[tun_index];
 	  } else {
-	      sem_post(defs_lock);
+	      pthread_mutex_unlock(defs_lock);
 	      continue;
 	  }
       } else {
@@ -306,7 +305,7 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
       //Verify sequence number
       if(seq < source_tun->remote_seq) {
 	  do_debug("Replayed packet received: got seq %d expected %d\n",seq,source_tun->remote_seq);
-	  sem_post(defs_lock);
+	  pthread_mutex_unlock(defs_lock);
 	  continue;
       }
       source_tun->remote_seq = seq;
@@ -315,13 +314,13 @@ void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udpt
       //Decrypt
       if((esp_decode(tun_buffer, nread, &seq_n, pkt_buffer, &ndecoded, source_tun->key, source_tun->iv)) < 0) {
 	  do_debug("esp_decode failed\n");
-	  sem_post(defs_lock);
+	  pthread_mutex_unlock(defs_lock);
 	  continue;
       }
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
       nwrite = cwrite(tun_fd, pkt_buffer, ndecoded);
-      do_debug("NET2TUN %lu: Written %d bytes to the tap interface\n", tun_sock->net2tun, nwrite);
+      do_debug("NET2TUN %lu: Written %d bytes to the tap interface\n", tun_sock.net2tun, nwrite);
     }
   }
 

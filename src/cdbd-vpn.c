@@ -10,12 +10,11 @@
 #include <unistd.h>
 #include <net/if.h>
 #include <linux/if_tun.h>
-#include <semaphore.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
@@ -29,6 +28,7 @@
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/conf.h>
+#include "openssl_thread.h"
 #include "udptun.h"
 #include "debug.h"
 #include "tls_server.h"
@@ -37,13 +37,10 @@
 
 char *progname;
 
-sem_t *defs_lock;
-udptun_def *defs;
-udptun_route *routes;
-int shm_fd;
-uint8_t *shm;
+char **confOpts;
+char *certloc; char *route;
 
-udptun_sock tun_sock;
+pthread_t udptun;
 
 /**************************************************************************
  * usage: prints usage and exits.                                         *
@@ -61,33 +58,43 @@ void usage(void) {
   exit(1);
 }
 
+char **read_config_file(const char *confile) {
+  FILE* fp;
+  int i = 0;
+  char* line;
+  char** confStuff = malloc(sizeof(char*)*3);
+  ssize_t read;
+  size_t len;
+
+  fp = fopen(confile, "r");
+  if(fp == NULL) {
+    printf("Cannot open config file %s",confile);
+    exit(1);
+  }
+
+  while((read = getline(&line, &len, fp) != -1)) {
+    confStuff[i] = line;
+    line = NULL;
+    i++;
+    if(i >= 3) break;
+  }
+  fclose(fp);
+  return confStuff;
+}
+
+
 #ifndef UNITY_FIXTURES
 int main(int argc, char *argv[])
 {
-  int option;
+  THREAD_setup();
+  ERR_load_crypto_strings();
+  OpenSSL_add_all_algorithms();
+  OPENSSL_config(NULL);
 
-  if((shm_fd = shm_open("cdbd-vpn", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)) < 0) {
-      printf("shm_open");
-      exit(-1);
-  }
+  int option;    /* command line options, keepalive flag */
 
-  if(ftruncate(shm_fd, SHM_SIZE) < 0){
-      printf("ftruncate");
-      exit(-1);
-  }
+  pthread_mutex_init(defs_lock, NULL);
 
-  if((shm = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0)) == MAP_FAILED) {
-      printf("mmap");
-      exit(-1);
-  }
-
-  defs_lock = (sem_t*)shm;
-  if((sem_init(defs_lock, 1, 1) < 0)) {
-      printf("sem_init");
-      exit(-1);
-  }
-  defs = (udptun_def*)(shm+1);
-  routes = (udptun_route*)(defs+MAX_TUNDEFS);
 
   memset(&tun_sock, 0, sizeof(udptun_sock));
   tun_sock.mode = -1;
@@ -100,7 +107,7 @@ int main(int argc, char *argv[])
   progname = argv[0];
 
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:sc:p:hd")) > 0) {
+  while((option = getopt(argc, argv, "i:sc:p:hdf:")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -122,6 +129,12 @@ int main(int argc, char *argv[])
 		defs[0].remote_port = atoi(optarg);
 		tun_sock.port = atoi(optarg);
 		break;
+	  case 'f':
+		confOpts = read_config_file(optarg);
+		certloc = confOpts[0];
+		defs[0].route = confOpts[1];
+		defs[0].ka = !!atoi(confOpts[2]);
+	        break;
 	  default:
 		my_err("Unknown option %c\n", option);
 		usage();
@@ -157,21 +170,14 @@ int main(int argc, char *argv[])
   //memcpy(&defs[0].iv, "01234567890123456",16);
   //defs[0].encryption = true;
 
-  if(!fork()) {
-      //Child
-      ERR_load_crypto_strings();
-      OpenSSL_add_all_algorithms();
-      OPENSSL_config(NULL);
-      udptun_init(&tun_sock, defs, defs_lock, routes);
+  pthread_create(&udptun, NULL, udptun_init, NULL);
+
+  if(tun_sock.mode == SERVER) {
+      tls_server_init();
   } else {
-      //Parent
-      if(tun_sock.mode == SERVER) {
-	  tls_server_init();
-      } else {
-	  tls_client_init();
-      }
-      wait(NULL);
+      tls_client_init();
   }
+
 
 }
 #endif //UNITY_FIXTURES
