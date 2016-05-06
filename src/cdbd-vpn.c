@@ -53,11 +53,33 @@ void usage(void) {
   exit(1);
 }
 
+char **configTun(char *confile) {
+  int fp;
+  int done = 0; int i;
+  char *line; char **confStuff;
+  ssize_t read; size_t len = 0;
+
+  fp = fopen(confile, "r");
+  if(fp == NULL) {done = 1;}
+
+  if(done != 1) {
+	while((read = getline(&line, &len, fp) != -1)) {
+      for(i = 0; i < 3; i++;) {
+		confStuff[i] = (char *) malloc(sizeof(char)*sizeof(line) + 1);
+	    strcpy(confStuff[i], line);
+	  }
+	  if(i >=3) break;
+	}
+  } return confStuff;
+}
+
+
 #ifndef UNITY_FIXTURES
 int main(int argc, char *argv[])
 {
-  int option;
-
+  int option, ka;    /* command line options, keepalive flag */
+  char **confOpts;
+  char *certloc; char *route;
   memset(&tun_sock, 0, sizeof(udptun_sock));
   tun_sock.mode = -1;
   tun_sock.port = PORT;
@@ -91,6 +113,12 @@ int main(int argc, char *argv[])
 		defs[0].remote_port = atoi(optarg);
 		tun_sock.port = atoi(optarg);
 		break;
+      case 'f':
+	    confOpts = configTun("set.cnf");
+		certloc = (char *) malloc(sizeof(confOpts[0] + 1);
+		route = (char *) malloc(sizeof(confOpts[1] + 1);
+		ka = atoi(confOpts[2]);
+	        break;
 	  default:
 		my_err("Unknown option %c\n", option);
 		usage();
