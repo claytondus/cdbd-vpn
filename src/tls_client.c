@@ -28,6 +28,8 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/rsa.h>    /* key exchange stuff */
+#include <openssl/pem.h>
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./certs/"
@@ -53,6 +55,7 @@ void tls_client_init(void)
   char*    str;
   char     buf [4096];
   const SSL_METHOD *meth;
+  char *rsakey;
 
   OpenSSL_add_ssl_algorithms();
   meth = TLSv1_2_client_method();
@@ -102,9 +105,8 @@ void tls_client_init(void)
 
   /* Following two steps are optional and not required for
      data exchange to be successful. */
-
-  /* Get the cipher - opt */
-
+  rsakey = keyExchange();    /* Get the cipher - opt */
+  
   printf ("SSL connection using %s\n", SSL_get_cipher (ssl));
 
   /* Get server's certificate (note: beware of dynamic allocation) - opt */
@@ -143,5 +145,20 @@ void tls_client_init(void)
   SSL_free (ssl);
   SSL_CTX_free (ctx);
 
+} 
+
+char *keyExchange() {
+  int keylen; char *pem_key;
+  RSA *r = RSA_generate_key(1024, 65537, 0)    /* chose this instead of k=3 because security issue */
+  
+  BIO *bio = BIO_new(BIO_s_mem());
+  PEM_write_bio_RSAPrivateKey(bio, r, NULL, NULL, 0, NULL, NULL);
+
+  keylen = BIO_pending(bio);
+  pem_key = calloc(keylen + 1, 1);
+  BIO_read(bio, pem_key, keylen);
+  BIO_free_all(bio);
+  printf("%s", pem_key);
+  
+  return pem_key;
 }
-/* EOF - cli.cpp */
