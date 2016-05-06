@@ -1,8 +1,6 @@
 /*
  * tls_client.c
  *
- *  Created on: May 5, 2016
- *      Author: parallels
  */
 
 
@@ -63,7 +61,10 @@ void tls_client_init(void)
 
 
   SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+  SSL_CTX_set_verify_depth(ctx, 4);
   SSL_CTX_load_verify_locations(ctx,CACERT,NULL);
+
+
 
   if (SSL_CTX_use_certificate_file(ctx, CERTF, SSL_FILETYPE_PEM) <= 0) {
 	  ERR_print_errors_fp(stderr);
@@ -76,7 +77,7 @@ void tls_client_init(void)
   }
 
   if (!SSL_CTX_check_private_key(ctx)) {
-	  printf("Private key does not match the certificate public keyn");
+	  printf("Private key does not match the certificate public key");
 	  exit(-4);
   }
 
@@ -87,7 +88,7 @@ void tls_client_init(void)
 
   memset (&sa, '\0', sizeof(sa));
   sa.sin_family      = AF_INET;
-  sa.sin_addr.s_addr = inet_addr ("10.37.129.6");   /* Server IP */
+  sa.sin_addr.s_addr = inet_addr ("10.37.129.10");   /* Server IP */
   sa.sin_port        = htons     (1111);          /* Server Port number */
 
   err = connect(sd, (struct sockaddr*) &sa,
@@ -125,6 +126,11 @@ void tls_client_init(void)
   /* We could do all sorts of certificate verification stuff here before
      deallocating the certificate. */
 
+
+  if ((err = SSL_get_verify_result(ssl) != X509_V_OK)) {
+      printf("Server certificate not verified");
+  }
+
   X509_free (server_cert);
 
   /* --------------------------------------------------- */
@@ -144,4 +150,4 @@ void tls_client_init(void)
   SSL_CTX_free (ctx);
 
 }
-/* EOF - cli.cpp */
+

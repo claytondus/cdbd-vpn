@@ -29,7 +29,7 @@ CFLAGS += -Wold-style-definition
 TARGET = build/cdbd-vpn
 SRC_FILES=src/*.c
 INC_DIRS=-Isrc -Iinclude 
-LDFLAGS = -lssl -lcrypto
+LDFLAGS = -lssl -lcrypto -lpthread
 SYMBOLS = 
 
 TEST_TARGET = all_tests.o
@@ -40,7 +40,7 @@ src/*.c \
 test/*.c \
 test/test_runners/*.c
 TEST_INC_DIRS=-Isrc -Iinclude -I$(UNITY_ROOT)/src -I$(UNITY_ROOT)/extras/fixture/src
-TEST_LDFLAGS = -lssl -lcrypto
+TEST_LDFLAGS = -lssl -lcrypto -lpthread
 TEST_SYMBOLS=-DUNITY_FIXTURES
 
 .PHONY: clean test

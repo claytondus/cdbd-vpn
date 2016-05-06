@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <net/if.h>
 #include <linux/if_tun.h>
+#include <semaphore.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -38,6 +39,12 @@ typedef struct {
   unsigned long int net2tun, tun2net;
 } udptun_sock;
 
+typedef struct {
+  in_addr_t network;
+  in_addr_t mask;
+  uint8_t tunnel;
+} udptun_route;
+
 
 //Represents a single tunnel
 typedef struct {
@@ -56,8 +63,6 @@ typedef struct {
   //State (UP, DOWN, UNKNOWN)
 } udptun_def;
 
-udptun_def defs[256];
-
-void udptun_init(udptun_sock* tun_sock);
+void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udptun_route *routes);
 
 #endif /* INCLUDE_UDPTUN_H_ */

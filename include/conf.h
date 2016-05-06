@@ -14,5 +14,9 @@
 #define SERVER 1
 #define PORT 55555
 
+#define SHM_SIZE 65536
+#define MAX_TUNDEFS 256
+#define MAX_ROUTES 256
+
 
 #endif /* INCLUDE_CONF_H_ */

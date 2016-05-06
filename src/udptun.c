@@ -113,11 +113,49 @@ int read_n(int fd, uint8_t *buf, int n) {
   return n;  
 }
 
+//Returns the tunnel index for this packet
+int udptun_route_packet(uint8_t *pkt, udptun_route *routes) {
+
+  in_addr_t dest_ip, masked;
+  uint32_t longest_match, mask_len = 0;
+
+  int i =0, match = -1;
+
+  //Extract destination IP from packet (16th to 20th byte)
+  memcpy(&dest_ip, pkt+15, sizeof(in_addr_t));
+  for(i = 0; i < MAX_ROUTES; i++) {
+
+      //Mask off dest_ip with route mask
+      masked = dest_ip & routes[i].mask;
+
+      if(routes[i].network == masked) {
+	  //Save match if it is the longest
+	  mask_len = ntohl(routes[i].mask);
+	  if(mask_len > longest_match) {
+	      longest_match = mask_len;
+	      match = routes[i].tunnel;
+	  }
+      }
+
+  }
+
+  return match;
+}
+
+//Returns tunnel index with SPI
+int udptun_lookup_spi(uint32_t spi, udptun_def *defs) {
+
+  int i = 0;
+  for(i = 0; i < MAX_TUNDEFS; i++) {
+      if(defs[i].spi == spi) {
+	  return i;
+      }
+  }
+  return -1;
+}
 
 
-
-
-void udptun_init(udptun_sock *tun_sock) {
+void udptun_init(udptun_sock *tun_sock, udptun_def *defs, sem_t *defs_lock, udptun_route *routes) {
   
   int tun_fd;
   int flags = IFF_TUN;
@@ -127,9 +165,11 @@ void udptun_init(udptun_sock *tun_sock) {
   uint8_t tun_buffer[BUFSIZE], pkt_buffer[BUFSIZE];
   int sock_fd, net_fd, optval = 1;
   udptun_def *dest_tun, *source_tun;
+  int tun_index = -1;
   uint32_t spi, seq, spi_n, seq_n;
   struct sockaddr_in recvd_ip;
   socklen_t recvd_ip_len = 0;
+
 
 
   /* initialize tun/tap interface */
@@ -195,13 +235,24 @@ void udptun_init(udptun_sock *tun_sock) {
       do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock->tun2net, nread);
 
       //Figure out which tunnel this belongs to
-      dest_tun = &defs[0];
+      sem_wait(defs_lock);
+      if(tun_sock->mode == SERVER) {
+	  if((tun_index = udptun_route_packet(pkt_buffer, routes)) > 0) {
+	      dest_tun = &defs[tun_index];
+	  } else {
+	      sem_post(defs_lock);
+	      continue;
+	  }
+      } else {
+	  dest_tun = &defs[0];
+      }
 
       //Set SPI, seq number
       //Encrypt
       //Calculate HMAC
       if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->local_seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
 	  do_debug("esp_encode failed\n");
+	  sem_post(defs_lock);
 	  continue;
       }
       dest_tun->local_seq++;
@@ -212,6 +263,7 @@ void udptun_init(udptun_sock *tun_sock) {
           perror("sendto");
           exit(1);
       }
+      sem_post(defs_lock);
       
       do_debug("TUN2NET %lu: Written %d bytes to the network\n", tun_sock->tun2net, nwrite);
     }
@@ -235,13 +287,26 @@ void udptun_init(udptun_sock *tun_sock) {
       memcpy(&seq_n, tun_buffer+4, 4);
       seq = ntohl(seq_n);
 
-      //TODO: Determine which tunnel this actually came from
+
       do_debug("Received packet with SPI %x\n",spi);
-      source_tun = &defs[0];
+      sem_wait(defs_lock);
+
+      //Look up tunnel
+      if(tun_sock->mode == SERVER) {
+	  if((tun_index = udptun_lookup_spi(spi, defs)) > 0) {
+	      source_tun = &defs[tun_index];
+	  } else {
+	      sem_post(defs_lock);
+	      continue;
+	  }
+      } else {
+	  source_tun = &defs[0];
+      }
 
       //Verify sequence number
       if(seq < source_tun->remote_seq) {
 	  do_debug("Replayed packet received: got seq %d expected %d\n",seq,source_tun->remote_seq);
+	  sem_post(defs_lock);
 	  continue;
       }
       source_tun->remote_seq = seq;
@@ -250,9 +315,9 @@ void udptun_init(udptun_sock *tun_sock) {
       //Decrypt
       if((esp_decode(tun_buffer, nread, &seq_n, pkt_buffer, &ndecoded, source_tun->key, source_tun->iv)) < 0) {
 	  do_debug("esp_decode failed\n");
+	  sem_post(defs_lock);
 	  continue;
       }
-
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
       nwrite = cwrite(tun_fd, pkt_buffer, ndecoded);

@@ -10,10 +10,12 @@
 #include <unistd.h>
 #include <net/if.h>
 #include <linux/if_tun.h>
+#include <semaphore.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
@@ -34,6 +36,12 @@
 
 
 char *progname;
+
+sem_t *defs_lock;
+udptun_def *defs;
+udptun_route *routes;
+int shm_fd;
+uint8_t *shm;
 
 udptun_sock tun_sock;
 
@@ -58,17 +66,41 @@ int main(int argc, char *argv[])
 {
   int option;
 
+  if((shm_fd = shm_open("cdbd-vpn", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)) < 0) {
+      printf("shm_open");
+      exit(-1);
+  }
+
+  if(ftruncate(shm_fd, SHM_SIZE) < 0){
+      printf("ftruncate");
+      exit(-1);
+  }
+
+  if((shm = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0)) == MAP_FAILED) {
+      printf("mmap");
+      exit(-1);
+  }
+
+  defs_lock = (sem_t*)shm;
+  if((sem_init(defs_lock, 1, 1) < 0)) {
+      printf("sem_init");
+      exit(-1);
+  }
+  defs = (udptun_def*)(shm+1);
+  routes = (udptun_route*)(defs+MAX_TUNDEFS);
+
   memset(&tun_sock, 0, sizeof(udptun_sock));
   tun_sock.mode = -1;
   tun_sock.port = PORT;
 
-  memset(&defs, 0, 256*sizeof(udptun_def));
+  memset(defs, 0, MAX_TUNDEFS*sizeof(udptun_def));
+  memset(routes, 0, MAX_ROUTES*sizeof(udptun_route));
   defs[0].remote_port = PORT;
 
   progname = argv[0];
 
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:s:c:p:hd")) > 0) {
+  while((option = getopt(argc, argv, "i:sc:p:hd")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -81,7 +113,6 @@ int main(int argc, char *argv[])
 		break;
 	  case 's':
 		tun_sock.mode = SERVER;
-		strncpy(defs[0].remote_ip,optarg,15);
 		break;
 	  case 'c':
 		tun_sock.mode = CLIENT;
@@ -116,22 +147,22 @@ int main(int argc, char *argv[])
 	usage();
   }
 
-  defs[0].remote.sin_family = AF_INET;
-  defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
-  defs[0].remote.sin_port = htons(defs[0].remote_port);
-  defs[0].spi = 0xDEADBEEF;
-  defs[0].local_seq = 0;
-  defs[0].remote_seq = 0;
-  memcpy(&defs[0].key,"01234567890123456789012345678901",32);
-  memcpy(&defs[0].iv, "01234567890123456",16);
-  defs[0].encryption = true;
+  //defs[0].remote.sin_family = AF_INET;
+  //defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
+  //defs[0].remote.sin_port = htons(defs[0].remote_port);
+  //defs[0].spi = 0xDEADBEEF;
+  //defs[0].local_seq = 0;
+  //defs[0].remote_seq = 0;
+  //memcpy(&defs[0].key,"01234567890123456789012345678901",32);
+  //memcpy(&defs[0].iv, "01234567890123456",16);
+  //defs[0].encryption = true;
 
   if(!fork()) {
       //Child
       ERR_load_crypto_strings();
       OpenSSL_add_all_algorithms();
       OPENSSL_config(NULL);
-      udptun_init(&tun_sock);
+      udptun_init(&tun_sock, defs, defs_lock, routes);
   } else {
       //Parent
       if(tun_sock.mode == SERVER) {

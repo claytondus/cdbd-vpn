@@ -99,60 +99,67 @@ void tls_server_init(void)
   err = listen (listen_sd, 5);                    CHK_ERR(err, "listen");
 
   client_len = sizeof(sa_cli);
-  sd = accept(listen_sd, (struct sockaddr*)&sa_cli, (socklen_t*)&client_len);
-  CHK_ERR(sd, "accept");
-  close (listen_sd);
 
-  printf ("Connection from %lx, port %x\n",
-	  (long unsigned int)sa_cli.sin_addr.s_addr, sa_cli.sin_port);
+  while (1) {
+    sd = accept(listen_sd, (struct sockaddr*)&sa_cli, (socklen_t*)&client_len);
+    CHK_ERR(sd, "accept");
+    close (listen_sd);
 
-  /* ----------------------------------------------- */
-  /* TCP connection is ready. Do server side SSL. */
+    printf ("Connection from %s, port %d\n", inet_ntoa(sa_cli.sin_addr), sa_cli.sin_port);
 
-  ssl = SSL_new (ctx);                           CHK_NULL(ssl);
-  SSL_set_fd (ssl, sd);
-  err = SSL_accept (ssl);                        CHK_SSL(err);
+    /* ----------------------------------------------- */
+    /* TCP connection is ready. Do server side SSL. */
 
-  /* Get the cipher - opt */
+    ssl = SSL_new (ctx);                           CHK_NULL(ssl);
+    SSL_set_fd (ssl, sd);
+    err = SSL_accept (ssl);                        CHK_SSL(err);
 
-  printf ("SSL connection using %s\n", SSL_get_cipher (ssl));
+    /* Get the cipher - opt */
 
-  /* Get client's certificate (note: beware of dynamic allocation) - opt */
+    printf ("SSL connection using %s\n", SSL_get_cipher (ssl));
 
-  client_cert = SSL_get_peer_certificate (ssl);
-  if (client_cert != NULL) {
-    printf ("Client certificate:\n");
+    /* Get client's certificate (note: beware of dynamic allocation) - opt */
 
-    str = X509_NAME_oneline (X509_get_subject_name (client_cert), 0, 0);
-    CHK_NULL(str);
-    printf ("\t subject: %s\n", str);
-    OPENSSL_free (str);
+    client_cert = SSL_get_peer_certificate (ssl);
+    if (client_cert != NULL) {
+      printf ("Client certificate:\n");
 
-    str = X509_NAME_oneline (X509_get_issuer_name  (client_cert), 0, 0);
-    CHK_NULL(str);
-    printf ("\t issuer: %s\n", str);
-    OPENSSL_free (str);
+      str = X509_NAME_oneline (X509_get_subject_name (client_cert), 0, 0);
+      CHK_NULL(str);
+      printf ("\t subject: %s\n", str);
+      OPENSSL_free (str);
 
-    /* We could do all sorts of certificate verification stuff here before
-       deallocating the certificate. */
+      str = X509_NAME_oneline (X509_get_issuer_name  (client_cert), 0, 0);
+      CHK_NULL(str);
+      printf ("\t issuer: %s\n", str);
+      OPENSSL_free (str);
 
-    X509_free (client_cert);
-  } else
-    printf ("Client does not have certificate.\n");
+      /* We could do all sorts of certificate verification stuff here before
+	 deallocating the certificate. */
 
-  /* DATA EXCHANGE - Receive message and send reply. */
+      X509_free (client_cert);
+    } else
+      printf ("Client does not have certificate.\n");
+      goto cleanup;
 
-  err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
-  buf[err] = '\0';
-  printf ("Got %d chars:'%s'\n", err, buf);
+    /* DATA EXCHANGE - Receive message and send reply. */
 
-  err = SSL_write (ssl, "I hear you.", strlen("I hear you."));  CHK_SSL(err);
+    err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
+    buf[err] = '\0';
+    printf ("Got %d chars:'%s'\n", err, buf);
 
-  /* Clean up. */
+    err = SSL_write (ssl, "I hear you.", strlen("I hear you."));  CHK_SSL(err);
 
-  close (sd);
-  SSL_free (ssl);
-  SSL_CTX_free (ctx);
+    //Handle messages from client
+    //Find a tunnel associated with the client IP, or create one
+
+
+    /* Clean up. */
+  cleanup:
+    close (sd);
+    SSL_free (ssl);
+    SSL_CTX_free (ctx);
+  }
 
 }
 /* EOF - serv.cpp */
