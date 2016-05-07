@@ -42,6 +42,7 @@ char *certloc; char *route;
 
 pthread_t udptun;
 
+
 /**************************************************************************
  * usage: prints usage and exits.                                         *
  **************************************************************************/
@@ -93,15 +94,15 @@ int main(int argc, char *argv[])
 
   int option;    /* command line options, keepalive flag */
 
-  pthread_mutex_init(defs_lock, NULL);
+  pthread_mutex_init(&defs_lock,NULL);
 
 
   memset(&tun_sock, 0, sizeof(udptun_sock));
   tun_sock.mode = -1;
   tun_sock.port = PORT;
 
-  memset(defs, 0, MAX_TUNDEFS*sizeof(udptun_def));
-  memset(routes, 0, MAX_ROUTES*sizeof(udptun_route));
+  defs = calloc(MAX_TUNDEFS,sizeof(udptun_def));
+  routes = calloc(MAX_ROUTES,sizeof(udptun_route));
   defs[0].remote_port = PORT;
 
   progname = argv[0];

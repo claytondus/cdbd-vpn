@@ -27,7 +27,10 @@
 #include "udptun.h"
 #include "esp.h"
 
-
+udptun_sock tun_sock;
+pthread_mutex_t defs_lock;
+udptun_def *defs;
+udptun_route *routes;
 
 /**************************************************************************
  * tun_alloc: allocates or reconnects to a tun/tap device. The caller     *
@@ -234,12 +237,12 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
       do_debug("TUN2NET %lu: Read %d bytes from the tun interface\n", tun_sock.tun2net, nread);
 
       //Figure out which tunnel this belongs to
-      pthread_mutex_lock(defs_lock);
+      pthread_mutex_lock(&defs_lock);
       if(tun_sock.mode == SERVER) {
 	  if((tun_index = udptun_route_packet(pkt_buffer, routes)) > 0) {
 	      dest_tun = &defs[tun_index];
 	  } else {
-	      pthread_mutex_unlock(defs_lock);
+	      pthread_mutex_unlock(&defs_lock);
 	      continue;
 	  }
       } else {
@@ -251,7 +254,7 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
       //Calculate HMAC
       if((nencoded = esp_encode(tun_buffer, dest_tun->spi, dest_tun->local_seq, pkt_buffer, nread, dest_tun->key, dest_tun->iv)) < 0) {
 	  do_debug("esp_encode failed\n");
-	  pthread_mutex_unlock(defs_lock);
+	  pthread_mutex_unlock(&defs_lock);
 	  continue;
       }
       dest_tun->local_seq++;
@@ -262,7 +265,7 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
           perror("sendto");
           exit(1);
       }
-      pthread_mutex_unlock(defs_lock);
+      pthread_mutex_unlock(&defs_lock);
       
       do_debug("TUN2NET %lu: Written %d bytes to the network\n", tun_sock.tun2net, nwrite);
     }
@@ -288,14 +291,14 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 
 
       do_debug("Received packet with SPI %x\n",spi);
-      pthread_mutex_lock(defs_lock);
+      pthread_mutex_lock(&defs_lock);
 
       //Look up tunnel
       if(tun_sock.mode == SERVER) {
 	  if((tun_index = udptun_lookup_spi(spi, defs)) > 0) {
 	      source_tun = &defs[tun_index];
 	  } else {
-	      pthread_mutex_unlock(defs_lock);
+	      pthread_mutex_unlock(&defs_lock);
 	      continue;
 	  }
       } else {
@@ -305,7 +308,7 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
       //Verify sequence number
       if(seq < source_tun->remote_seq) {
 	  do_debug("Replayed packet received: got seq %d expected %d\n",seq,source_tun->remote_seq);
-	  pthread_mutex_unlock(defs_lock);
+	  pthread_mutex_unlock(&defs_lock);
 	  continue;
       }
       source_tun->remote_seq = seq;
@@ -314,7 +317,7 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
       //Decrypt
       if((esp_decode(tun_buffer, nread, &seq_n, pkt_buffer, &ndecoded, source_tun->key, source_tun->iv)) < 0) {
 	  do_debug("esp_decode failed\n");
-	  pthread_mutex_unlock(defs_lock);
+	  pthread_mutex_unlock(&defs_lock);
 	  continue;
       }
 

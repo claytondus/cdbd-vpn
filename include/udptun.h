@@ -58,10 +58,10 @@ typedef struct {
   //State (UP, DOWN, UNKNOWN)
 } udptun_def;
 
-udptun_sock tun_sock;
-pthread_mutex_t *defs_lock;
-udptun_def *defs;
-udptun_route *routes;
+extern udptun_sock tun_sock;
+extern pthread_mutex_t defs_lock;
+extern udptun_def *defs;
+extern udptun_route *routes;
 
 void* udptun_init(void*);
 
