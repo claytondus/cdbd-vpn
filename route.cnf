@@ -1,3 +1,4 @@
 ## location of certs
 ## endpoint1 R1
 ## keepalive bit (0==no, 1==yes)
+ka = 0
