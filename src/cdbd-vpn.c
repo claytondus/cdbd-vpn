@@ -91,6 +91,11 @@ int main(int argc, char *argv[])
 		defs[0].remote_port = atoi(optarg);
 		tun_sock.port = atoi(optarg);
 		break;
+	  case 'f':
+	  	confOpts = configTun("set.cnf");
+		certloc = (char *) malloc(sizeof(confOpts[0] + 1);    // still not sure where to grab cert for use
+	        defs[0].remote_ip = (char *) malloc(sizeof(confOpts[1] + 1);
+	        defs[0].ka = atoi(confOpts[2]);
 	  default:
 		my_err("Unknown option %c\n", option);
 		usage();
@@ -125,6 +130,8 @@ int main(int argc, char *argv[])
   memcpy(&defs[0].key,"01234567890123456789012345678901",32);
   memcpy(&defs[0].iv, "01234567890123456",16);
   defs[0].encryption = true;
+  tun_sock.remote_ip = confOpts[2];
+  tun_sock.ka = ka;
 
   if(!fork()) {
       //Child
