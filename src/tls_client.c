@@ -20,12 +20,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "udptun.h"
+#include "debug.h"
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./certs/"
@@ -40,16 +41,15 @@
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #define CHK_SSL(err) if ((err)==-1) { ERR_print_errors_fp(stderr); exit(2); }
 
+
+SSL_CTX* ctx;
+uint8_t* cmds[1024];
+uint16_t cmds_len;
+
 void tls_client_init(void)
 {
   int err;
-  int sd;
-  struct sockaddr_in sa;
-  SSL_CTX* ctx;
-  SSL*     ssl;
-  X509*    server_cert;
-  char*    str;
-  char     buf [4096];
+
   const SSL_METHOD *meth;
 
   OpenSSL_add_ssl_algorithms();
@@ -81,18 +81,78 @@ void tls_client_init(void)
 	  exit(-4);
   }
 
+  //Send startup commands to server
+  memset(cmds, 0, 1024);
+  cmds_len = 0;
+
+
+}
+
+void tls_client_cmd_key(void) {
+
+  do_debug("TLS: Preparing session key command\n");
+  uint8_t* this_cmd = (uint8_t*)cmds+cmds_len;
+  this_cmd[0] = 0xCD;
+  this_cmd[1] = 0xBD;
+  this_cmd[2] = 0x00;  //Key command
+  this_cmd[3] = 0x08;  //256 bits, 32 bytes, 8 words
+
+  FILE* fp = fopen("/dev/urandom", "r");
+  fread(this_cmd+4, 1, 32, fp);
+  fclose(fp);
+
+  cmds_len += 36;
+}
+
+void tls_client_cmd_iv(void) {
+
+  do_debug("TLS: Preparing IV command\n");
+  uint8_t* this_cmd = (uint8_t*)cmds+cmds_len;
+  this_cmd[0] = 0xCD;
+  this_cmd[1] = 0xBD;
+  this_cmd[2] = 0x01;  //IV command
+  this_cmd[3] = 0x04;  //128 bits, 16 bytes, 4 words
+
+  FILE* fp = fopen("/dev/urandom", "r");
+  fread(this_cmd+4, 1, 16, fp);
+  fclose(fp);
+
+  cmds_len += 20;
+}
+
+void tls_client_cmd_spi(void) {
+
+  do_debug("TLS: Preparing SPI command\n");
+  uint8_t* this_cmd = (uint8_t*)cmds+cmds_len;
+  this_cmd[0] = 0xCD;
+  this_cmd[1] = 0xBD;
+  this_cmd[2] = 0x04;  //SPI Command
+  this_cmd[3] = 0x01;  //32 bits, 4 bytes, 1 word
+
+  FILE* fp = fopen("/dev/urandom", "r");
+  fread(this_cmd+4, 1, 4, fp);
+  fclose(fp);
+
+  cmds_len += 20;
+}
+
+
+void tls_client_send(void) {
+
+  int err;
+  int sd;
+  SSL*     ssl;
+  X509*    server_cert;
+  char*    str;
+  char     buf[4096];
+
   /* ----------------------------------------------- */
   /* Create a socket and connect to server using normal socket calls. */
 
   sd = socket (AF_INET, SOCK_STREAM, 0);       CHK_ERR(sd, "socket");
 
-  memset (&sa, '\0', sizeof(sa));
-  sa.sin_family      = AF_INET;
-  sa.sin_addr.s_addr = inet_addr ("10.37.129.10");   /* Server IP */
-  sa.sin_port        = htons     (1111);          /* Server Port number */
-
-  err = connect(sd, (struct sockaddr*) &sa,
-		sizeof(sa));                   CHK_ERR(err, "connect");
+  err = connect(sd, (struct sockaddr*) &defs[0].remote,
+		sizeof(struct sockaddr_in));                   CHK_ERR(err, "connect");
 
   /* ----------------------------------------------- */
   /* Now we have TCP connection. Start SSL negotiation. */
@@ -141,13 +201,18 @@ void tls_client_init(void)
   err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
   buf[err] = '\0';
   printf ("Got %d chars:'%s'\n", err, buf);
+
+  //Send commands
+  err = SSL_write(ssl, cmds, cmds_len);				  CHK_SSL(err);
+  memset(cmds, 0, 1024);
+  cmds_len = 0;
+
   SSL_shutdown (ssl);  /* send SSL/TLS close_notify */
 
   /* Clean up. */
 
   close (sd);
   SSL_free (ssl);
-  SSL_CTX_free (ctx);
 
 }
 

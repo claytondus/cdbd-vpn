@@ -24,6 +24,8 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "udptun.h"
+
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./certs/"
@@ -52,6 +54,7 @@ void tls_server_init(void)
   char*    str;
   char     buf [4096];
   const SSL_METHOD *meth;
+  udptun_def* this_def;
 
   /* SSL preliminaries. We keep the certificate and key with the context. */
 
@@ -152,7 +155,18 @@ void tls_server_init(void)
 
     //Handle messages from client
     //Find a tunnel associated with the client IP, or create one
-
+    for(this_def = defs; this_def != NULL; this_def = this_def->next) {
+	if (this_def->remote.sin_addr.s_addr == sa_cli.sin_addr.s_addr) {
+	    break;
+	}
+    }
+    if(this_def == NULL) {
+	this_def = calloc(1, sizeof(udptun_def));
+	this_def->next = defs;
+	memcpy(&this_def->remote, &sa_cli, sizeof(struct sockaddr_in));
+	this_def->remote_port = ntohs(sa_cli.sin_port);
+	defs = this_def;
+    }
 
     /* Clean up. */
   cleanup:

@@ -84,8 +84,7 @@ char **read_config_file(const char *confile) {
 }
 
 
-#ifndef UNITY_FIXTURES
-int main(int argc, char *argv[])
+int cdbd_vpn_start(int argc, char *argv[])
 {
   THREAD_setup();
   ERR_load_crypto_strings();
@@ -133,7 +132,7 @@ int main(int argc, char *argv[])
 	  case 'f':
 		confOpts = read_config_file(optarg);
 		certloc = confOpts[0];
-		defs[0].route = confOpts[1];
+		//defs[0].route = confOpts[1];
 		defs[0].ka = !!atoi(confOpts[2]);
 	        break;
 	  default:
@@ -171,14 +170,26 @@ int main(int argc, char *argv[])
   //memcpy(&defs[0].iv, "01234567890123456",16);
   //defs[0].encryption = true;
 
-  pthread_create(&udptun, NULL, udptun_init, NULL);
+  //pthread_create(&udptun, NULL, udptun_init, NULL);
 
   if(tun_sock.mode == SERVER) {
       tls_server_init();
   } else {
+      defs = calloc(1, sizeof(udptun_def));
+      routes = calloc(1, sizeof(udptun_route));
       tls_client_init();
   }
 
+  return 0;
+
+}
+
+#ifndef UNITY_FIXTURES
+int main(int argc, char *argv[]) {
+
+  return cdbd_vpn_start(argc, argv);
 
 }
 #endif //UNITY_FIXTURES
+
+

@@ -33,16 +33,17 @@ typedef struct {
   unsigned long int net2tun, tun2net;
 } udptun_sock;
 
-typedef struct {
+struct udptun_route {
   in_addr_t network;
   in_addr_t mask;
   uint8_t tunnel;
-} udptun_route;
-
+  struct udptun_route* next;
+};
+typedef struct udptun_route udptun_route;
 
 //Represents a single tunnel
-typedef struct {
-  bool admin_state;   //Shutdown / not shutdown
+struct udptun_def {
+  bool admin_state;   //Shutdown 0 / not shutdown 1
   uint8_t id;
   uint32_t spi;
   uint32_t local_seq, remote_seq;
@@ -53,10 +54,12 @@ typedef struct {
   uint8_t key[32];  //256 bit
   uint8_t iv[16];   //128 bit
   bool encryption;
-  char* route;
   bool ka;
   //State (UP, DOWN, UNKNOWN)
-} udptun_def;
+  struct udptun_def* next;
+};
+typedef struct udptun_def udptun_def;
+
 
 extern udptun_sock tun_sock;
 extern pthread_mutex_t defs_lock;
