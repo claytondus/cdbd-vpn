@@ -120,29 +120,30 @@ uint32_t udptun_route_packet(uint8_t *pkt) {
 
   in_addr_t dest_ip, masked;
   uint32_t longest_match, mask_len, match = 0;
-
-  int i = 0;
+  udptun_route* this_route;
 
   //Extract destination IP from packet (16th to 20th byte)
   memcpy(&dest_ip, pkt+15, sizeof(in_addr_t));
-  for(i = 0; i < MAX_ROUTES; i++) {
 
+  //Loop through routes and find longest match
+  for(this_route = routes; this_route != NULL; this_route = this_route->next) {
       //Mask off dest_ip with route mask
-      masked = dest_ip & routes[i].mask;
+      masked = dest_ip & this_route->mask;
 
-      if(routes[i].network == masked) {
+      if(this_route->network == masked) {
 	  //Save match if it is the longest
-	  mask_len = ntohl(routes[i].mask);
+	  mask_len = ntohl(this_route->mask);
 	  if(mask_len > longest_match) {
 	      longest_match = mask_len;
-	      match = routes[i].spi;
+	      match = this_route->spi;
 	  }
       }
-
   }
 
   return match;
+
 }
+
 
 //Returns tunnel with SPI
 udptun_def* udptun_lookup_spi(uint32_t spi) {
@@ -170,8 +171,6 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
   uint32_t spi, seq, spi_n, seq_n;
   struct sockaddr_in recvd_ip;
   socklen_t recvd_ip_len = 0;
-
-
 
   /* initialize tun/tap interface */
   if ( (tun_fd = tun_alloc(tun_sock.if_name, flags | IFF_NO_PI)) < 0 ) {
@@ -251,7 +250,8 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 	      continue;
 	  }
       } else {
-	  dest_tun = &defs[0];
+	  //Only single tunnel on client
+	  dest_tun = defs;
       }
 
       //Set SPI, seq number
@@ -294,7 +294,6 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
       memcpy(&seq_n, tun_buffer+4, 4);
       seq = ntohl(seq_n);
 
-
       do_debug("Received packet with SPI %x\n",spi);
       pthread_mutex_lock(&defs_lock);
 
@@ -306,7 +305,8 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 	      continue;
 	  }
       } else {
-	  source_tun = &defs[0];
+	  //Single tunnel on client
+	  source_tun = defs;
       }
 
       //Verify sequence number
@@ -324,6 +324,8 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 	  pthread_mutex_unlock(&defs_lock);
 	  continue;
       }
+
+      pthread_mutex_unlock(&defs_lock);
 
       /* now buffer[] contains a full packet or frame, write it into the tun/tap interface */ 
       nwrite = cwrite(tun_fd, pkt_buffer, ndecoded);

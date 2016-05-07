@@ -52,9 +52,13 @@ void tls_server_init(void)
   SSL*     ssl;
   X509*    client_cert;
   char*    str;
-  char     buf [4096];
+  uint8_t     buf [4096];
   const SSL_METHOD *meth;
-  udptun_def* this_def;
+  udptun_def *this_def, *prev_def, *next_def;
+  uint32_t spi;
+  uint8_t* bufp;
+  uint8_t msg_len, msg_type;
+  udptun_route *this_route, *prev_route, *next_route;
 
   /* SSL preliminaries. We keep the certificate and key with the context. */
 
@@ -106,7 +110,6 @@ void tls_server_init(void)
   while (1) {
     sd = accept(listen_sd, (struct sockaddr*)&sa_cli, (socklen_t*)&client_len);
     CHK_ERR(sd, "accept");
-    close (listen_sd);
 
     printf ("Connection from %s, port %d\n", inet_ntoa(sa_cli.sin_addr), sa_cli.sin_port);
 
@@ -147,29 +150,122 @@ void tls_server_init(void)
 
     /* DATA EXCHANGE - Receive message and send reply. */
 
-    err = SSL_read (ssl, buf, sizeof(buf) - 1);                   CHK_SSL(err);
-    buf[err] = '\0';
-    printf ("Got %d chars:'%s'\n", err, buf);
-
-    err = SSL_write (ssl, "I hear you.", strlen("I hear you."));  CHK_SSL(err);
-
     //Handle messages from client
-    //Find a tunnel associated with the client IP, or create one
-    for(this_def = defs; this_def != NULL; this_def = this_def->next) {
-	if (this_def->remote.sin_addr.s_addr == sa_cli.sin_addr.s_addr) {
-	    break;
+    err = SSL_read(ssl, buf, sizeof(buf));		          CHK_SSL(err);
+
+    bufp = buf;
+
+    pthread_mutex_lock(&defs_lock);
+    //Process the commands; loop until the magic number isn't there
+    while((bufp[0] == 0xCD) && (bufp[1] == 0xBD)) {
+
+      msg_len = *(buf+2);
+      msg_type = *(buf+3);
+      spi = ntohl(*(buf+4));
+
+      //If this is a start command
+      if(msg_type == 0x04) {
+
+	  //Allocate tunnel
+	  this_def = calloc(1, sizeof(udptun_def));
+	  if(defs != NULL) {
+	      this_def->next = defs;
+	  } else {
+	      this_def->next = NULL;
+	  }
+	  memcpy(&this_def->remote, &sa_cli, sizeof(struct sockaddr_in));
+	  memcpy(&this_def->remote.sin_port, bufp+8, 2);
+	  this_def->spi = spi;
+	  defs = this_def;
+
+	  //Insert host route
+	  this_route = calloc(1, sizeof(udptun_route));
+	  if(routes != NULL) {
+	      this_route->next = routes;
+	  } else {
+	      this_route->next = NULL;
+	  }
+	  this_route->network = sa_cli.sin_addr.s_addr;
+	  this_route->mask = inet_addr("255.255.255.255");
+	  this_route->spi = spi;
+
+      } else {
+	//Find a tunnel associated with the SPI
+	for(this_def = defs; this_def != NULL; this_def = this_def->next) {
+	    if (this_def->spi == spi) {
+		break;
+	    }
 	}
-    }
-    if(this_def == NULL) {
-	this_def = calloc(1, sizeof(udptun_def));
-	this_def->next = defs;
-	memcpy(&this_def->remote, &sa_cli, sizeof(struct sockaddr_in));
-	this_def->remote_port = ntohs(sa_cli.sin_port);
-	defs = this_def;
+      }
+
+      //If this is a key command
+      if(msg_type == 0x00) {
+	  memcpy(&this_def->key, bufp+4, 32);
+      }
+
+      //If this is an IV command
+      if(msg_type == 0x01) {
+	  memcpy(&this_def->iv, bufp+4, 16);
+      }
+
+      //If this is a route command
+      if(msg_type == 0x03) {
+	  this_route = calloc(1, sizeof(udptun_route));
+	  if(routes != NULL) {
+	      this_route->next = routes;
+	  } else {
+	      this_route->next = NULL;
+	  }
+	  this_route->network = *(buf+8);
+	  this_route->mask = *(buf+12);
+	  this_route->spi = spi;
+      }
+
+      //If this is a stop command
+      if(msg_type == 0x02) {
+	  //Delete routes
+	  prev_route = NULL;
+	  this_route = routes;
+	  for(this_route = routes; this_route != NULL; ) {
+	      if (this_route->spi == spi) {
+		  if(prev_route == NULL) {  //delete at beginning of list
+		      routes = this_route->next;
+		  } else {   //join next to previous
+		      prev_route->next = this_route->next;
+		  }
+		  next_route = this_route->next;
+		  free(this_route);
+		  this_route = next_route;
+	      } else {
+		  prev_route = this_route;
+		  this_route = this_route->next;
+	      }
+	  }
+	  //Delete tunnel definition
+	  for(this_def = defs; this_def != NULL; ) {
+	      if (this_def->spi == spi) {
+		  if(prev_def == NULL) {  //delete at beginning of list
+		      defs = this_def->next;
+		  } else {   //join next to previous
+		      prev_def->next = this_def->next;
+		  }
+		  next_def = this_def->next;
+		  free(this_def);
+		  this_def = next_def;
+	      } else {
+		  prev_def = this_def;
+		  this_def = this_def->next;
+	      }
+	  }
+      }
+
+
+      bufp += msg_len*4;  //32 bit words in msg_len
     }
 
     /* Clean up. */
   cleanup:
+    pthread_mutex_unlock(&defs_lock);
     close (sd);
     SSL_free (ssl);
     SSL_CTX_free (ctx);

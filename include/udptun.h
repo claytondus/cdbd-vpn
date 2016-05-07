@@ -66,4 +66,5 @@ extern udptun_def *defs;
 extern udptun_route *routes;
 
 void* udptun_init(void*);
+udptun_def* udptun_lookup_spi(uint32_t spi);
 

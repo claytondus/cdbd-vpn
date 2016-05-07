@@ -20,11 +20,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <mqueue.h>
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <mqueue.h>
 #include "udptun.h"
 #include "debug.h"
 
@@ -137,7 +139,6 @@ void tls_client_send(void) {
   SSL*     ssl;
   X509*    server_cert;
   char*    str;
-  char     buf[4096];
 
   /* ----------------------------------------------- */
   /* Create a socket and connect to server using normal socket calls. */
@@ -188,12 +189,6 @@ void tls_client_send(void) {
 
   /* --------------------------------------------------- */
   /* DATA EXCHANGE - Send a message and receive a reply. */
-
-  err = SSL_write (ssl, "Hello World!", strlen("Hello World!"));  CHK_SSL(err);
-
-  err = SSL_read (ssl, buf, sizeof(buf) - 1);                     CHK_SSL(err);
-  buf[err] = '\0';
-  printf ("Got %d chars:'%s'\n", err, buf);
 
   //Send commands
   err = SSL_write(ssl, cmds, cmds_len);				  CHK_SSL(err);
@@ -256,5 +251,18 @@ void tls_client_init(void)
 
   pthread_mutex_unlock(&defs_lock);
 
-  pthread_join(pthread_create(&udptun, NULL, udptun_init, NULL), NULL);
+  pthread_create(&udptun, NULL, udptun_init, NULL);
+
+  struct mq_attr attr, *attrp;
+  char command;
+  attrp = NULL;
+  attr.mq_maxmsg = 10;
+  attr.mq_msgsize = 1;
+  attrp = &attr;
+
+  mqd_t mqd = mq_open("/cdbd-vpn", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR, attrp);
+
+  while(1) {
+    mq_receive(mqd, &command, 1, NULL);
+  }
 }
