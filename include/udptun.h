@@ -50,7 +50,7 @@ typedef struct {
   char remote_ip[16];            /* dotted quad IP string */
   unsigned short int remote_port;
   char *key;    //Tunnel key, passed from client
-  char * iv;    //Tunnel IV
+  char *iv;    //Tunnel IV
   //Encryption enabled
   uint8_t ka;    // Keepalive interval
   //State (UP, DOWN, UNKNOWN)
