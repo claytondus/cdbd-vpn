@@ -49,10 +49,10 @@ typedef struct {
   struct sockaddr_in remote;
   char remote_ip[16];            /* dotted quad IP string */
   unsigned short int remote_port;
-  //Tunnel key
-  //Tunnel IV
+  char *key;    //Tunnel key, passed from client
+  char * iv;    //Tunnel IV
   //Encryption enabled
-  //Keepalive interval
+  uint8_t ka;    // Keepalive interval
   //State (UP, DOWN, UNKNOWN)
 } udptun_def;
 
