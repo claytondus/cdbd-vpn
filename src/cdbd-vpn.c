@@ -92,6 +92,7 @@ int cdbd_vpn_start(int argc, char *argv[])
   OPENSSL_config(NULL);
 
   int option;    /* command line options, keepalive flag */
+  uint16_t remote_port = PORT;
 
   pthread_mutex_init(&defs_lock,NULL);
 
@@ -99,10 +100,6 @@ int cdbd_vpn_start(int argc, char *argv[])
   memset(&tun_sock, 0, sizeof(udptun_sock));
   tun_sock.mode = -1;
   tun_sock.port = PORT;
-
-  defs = calloc(MAX_TUNDEFS,sizeof(udptun_def));
-  routes = calloc(MAX_ROUTES,sizeof(udptun_route));
-  defs[0].remote_port = PORT;
 
   progname = argv[0];
 
@@ -126,8 +123,8 @@ int cdbd_vpn_start(int argc, char *argv[])
 		strncpy(defs[0].remote_ip,optarg,15);
 		break;
 	  case 'p':
-		defs[0].remote_port = atoi(optarg);
-		tun_sock.port = atoi(optarg);
+		remote_port = (uint16_t)strtoul(optarg, NULL, 0);
+		tun_sock.port = (uint16_t)strtoul(optarg, NULL, 0);
 		break;
 	  case 'f':
 		confOpts = read_config_file(optarg);
@@ -164,6 +161,7 @@ int cdbd_vpn_start(int argc, char *argv[])
       tls_server_init();
   } else {
       defs = calloc(1, sizeof(udptun_def));
+      defs[0].remote_port = remote_port;
       defs[0].remote.sin_family = AF_INET;
       defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
       defs[0].remote.sin_port = htons(defs[0].remote_port);
