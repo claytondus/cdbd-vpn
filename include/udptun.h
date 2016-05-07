@@ -52,7 +52,7 @@ struct udptun_def {
   unsigned short int remote_port;
   uint8_t key[32];  //256 bit
   uint8_t iv[16];   //128 bit
-  bool encryption;
+  char* route;
   bool ka;
   //State (UP, DOWN, UNKNOWN)
   struct udptun_def* next;

@@ -132,7 +132,7 @@ int cdbd_vpn_start(int argc, char *argv[])
 	  case 'f':
 		confOpts = read_config_file(optarg);
 		certloc = confOpts[0];
-		//defs[0].route = confOpts[1];
+		defs[0].route = confOpts[1];
 		defs[0].ka = !!atoi(confOpts[2]);
 	        break;
 	  default:
@@ -159,18 +159,6 @@ int cdbd_vpn_start(int argc, char *argv[])
 	my_err("Must specify server address!\n");
 	usage();
   }
-
-  //defs[0].remote.sin_family = AF_INET;
-  //defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
-  //defs[0].remote.sin_port = htons(defs[0].remote_port);
-  //defs[0].spi = 0xDEADBEEF;
-  //defs[0].local_seq = 0;
-  //defs[0].remote_seq = 0;
-  //memcpy(&defs[0].key,"01234567890123456789012345678901",32);
-  //memcpy(&defs[0].iv, "01234567890123456",16);
-  //defs[0].encryption = true;
-
-  //pthread_create(&udptun, NULL, udptun_init, NULL);
 
   if(tun_sock.mode == SERVER) {
       tls_server_init();
