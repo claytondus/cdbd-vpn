@@ -93,6 +93,8 @@ int cdbd_vpn_start(int argc, char *argv[])
 
   int option;    /* command line options, keepalive flag */
   uint16_t remote_port = PORT;
+  char remote_ip[16];
+  remote_ip[0] = '\0';
 
   pthread_mutex_init(&defs_lock,NULL);
 
@@ -120,7 +122,7 @@ int cdbd_vpn_start(int argc, char *argv[])
 		break;
 	  case 'c':
 		tun_sock.mode = CLIENT;
-		strncpy(defs[0].remote_ip,optarg,15);
+		strncpy(remote_ip,optarg,15);
 		break;
 	  case 'p':
 		remote_port = (uint16_t)strtoul(optarg, NULL, 0);
@@ -152,7 +154,7 @@ int cdbd_vpn_start(int argc, char *argv[])
   } else if(tun_sock.mode < 0) {
 	my_err("Must specify client or server mode!\n");
 	usage();
-  } else if((tun_sock.mode == CLIENT)&&(*defs[0].remote_ip == '\0')) {
+  } else if((tun_sock.mode == CLIENT)&&(remote_ip == '\0')) {
 	my_err("Must specify server address!\n");
 	usage();
   }
@@ -161,6 +163,7 @@ int cdbd_vpn_start(int argc, char *argv[])
       tls_server_init();
   } else {
       defs = calloc(1, sizeof(udptun_def));
+      strncpy(defs[0].remote_ip,remote_ip,15);
       defs[0].remote_port = remote_port;
       defs[0].remote.sin_family = AF_INET;
       defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);

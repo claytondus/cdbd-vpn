@@ -263,6 +263,25 @@ void tls_client_init(void)
   mqd_t mqd = mq_open("/cdbd-vpn", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR, attrp);
 
   while(1) {
+
     mq_receive(mqd, &command, 1, NULL);
+
+    pthread_mutex_lock(&defs_lock);
+    switch(command) {
+      case 0x00:
+	tls_client_cmd_key();
+	break;
+      case 0x01:
+	tls_client_cmd_iv();
+	break;
+      case 0x02:
+	tls_client_cmd_stop();
+	break;
+      default:
+	break;
+    }
+    tls_client_send();
+    pthread_mutex_unlock(&defs_lock);
+
   }
 }

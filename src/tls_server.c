@@ -64,6 +64,9 @@ void tls_server_init(void)
 
   SSL_load_error_strings();
   OpenSSL_add_ssl_algorithms();
+
+  pthread_create(&udptun, NULL, udptun_init, NULL);
+
   meth = TLSv1_2_server_method();
   ctx = SSL_CTX_new (meth);
   if (!ctx) {
