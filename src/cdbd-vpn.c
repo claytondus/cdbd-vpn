@@ -142,9 +142,9 @@ int main(int argc, char *argv[])
   } else {
       //Parent
       if(tun_sock.mode == SERVER) {
-	  tls_server_init();
+	  tls_server_init(certloc);
       } else {
-	  tls_client_init();
+	  tls_client_init(certloc);
       }
       wait(NULL);
   }
