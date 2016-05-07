@@ -96,7 +96,7 @@ void tls_server_init(void)
   memset (&sa_serv, '\0', sizeof(sa_serv));
   sa_serv.sin_family      = AF_INET;
   sa_serv.sin_addr.s_addr = INADDR_ANY;
-  sa_serv.sin_port        = htons (1111);          /* Server Port number */
+  sa_serv.sin_port        = tun_sock.local.sin_port;          /* Server Port number */
 
   err = bind(listen_sd, (struct sockaddr*) &sa_serv,
 	     sizeof (sa_serv));                   CHK_ERR(err, "bind");
@@ -104,6 +104,8 @@ void tls_server_init(void)
   /* Receive a TCP connection. */
 
   err = listen (listen_sd, 5);                    CHK_ERR(err, "listen");
+
+  printf("Listening on %s, port %d\n", inet_ntoa(sa_serv.sin_addr), sa_serv.sin_port);
 
   client_len = sizeof(sa_cli);
 
