@@ -115,13 +115,13 @@ int read_n(int fd, uint8_t *buf, int n) {
   return n;  
 }
 
-//Returns the tunnel index for this packet
-int udptun_route_packet(uint8_t *pkt, udptun_route *routes) {
+//Returns the tunnel for this packet
+uint32_t udptun_route_packet(uint8_t *pkt) {
 
   in_addr_t dest_ip, masked;
-  uint32_t longest_match, mask_len = 0;
+  uint32_t longest_match, mask_len, match = 0;
 
-  int i =0, match = -1;
+  int i = 0;
 
   //Extract destination IP from packet (16th to 20th byte)
   memcpy(&dest_ip, pkt+15, sizeof(in_addr_t));
@@ -135,7 +135,7 @@ int udptun_route_packet(uint8_t *pkt, udptun_route *routes) {
 	  mask_len = ntohl(routes[i].mask);
 	  if(mask_len > longest_match) {
 	      longest_match = mask_len;
-	      match = routes[i].tunnel;
+	      match = routes[i].spi;
 	  }
       }
 
@@ -144,16 +144,16 @@ int udptun_route_packet(uint8_t *pkt, udptun_route *routes) {
   return match;
 }
 
-//Returns tunnel index with SPI
-int udptun_lookup_spi(uint32_t spi, udptun_def *defs) {
+//Returns tunnel with SPI
+udptun_def* udptun_lookup_spi(uint32_t spi) {
 
-  int i = 0;
-  for(i = 0; i < MAX_TUNDEFS; i++) {
-      if(defs[i].spi == spi) {
-	  return i;
+  udptun_def* this_def;
+  for(this_def = defs; this_def != NULL; this_def = this_def->next) {
+      if(this_def->spi == spi) {
+	  break;
       }
   }
-  return -1;
+  return this_def;
 }
 
 
@@ -167,7 +167,6 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
   uint8_t tun_buffer[BUFSIZE], pkt_buffer[BUFSIZE];
   int sock_fd, net_fd, optval = 1;
   udptun_def *dest_tun, *source_tun;
-  int tun_index = -1;
   uint32_t spi, seq, spi_n, seq_n;
   struct sockaddr_in recvd_ip;
   socklen_t recvd_ip_len = 0;
@@ -239,9 +238,15 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
       //Figure out which tunnel this belongs to
       pthread_mutex_lock(&defs_lock);
       if(tun_sock.mode == SERVER) {
-	  if((tun_index = udptun_route_packet(pkt_buffer, routes)) > 0) {
-	      dest_tun = &defs[tun_index];
+	  if((spi = udptun_route_packet(pkt_buffer)) != 0) {
+	      if((dest_tun = udptun_lookup_spi(spi)) == NULL) {
+		    //Can not route packet
+		    do_debug("Dropping packet, SPI does not exist");
+		    pthread_mutex_unlock(&defs_lock);
+		    continue;
+	      }
 	  } else {
+	      do_debug("Dropping packet, no route to host");
 	      pthread_mutex_unlock(&defs_lock);
 	      continue;
 	  }
@@ -295,9 +300,8 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 
       //Look up tunnel
       if(tun_sock.mode == SERVER) {
-	  if((tun_index = udptun_lookup_spi(spi, defs)) > 0) {
-	      source_tun = &defs[tun_index];
-	  } else {
+	  if((source_tun = udptun_lookup_spi(spi)) == NULL) {
+	      //Can not find tunnel
 	      pthread_mutex_unlock(&defs_lock);
 	      continue;
 	  }

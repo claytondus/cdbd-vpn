@@ -46,46 +46,11 @@ SSL_CTX* ctx;
 uint8_t* cmds[1024];
 uint16_t cmds_len;
 
-void tls_client_init(void)
-{
-  int err;
 
-  const SSL_METHOD *meth;
-
-  OpenSSL_add_ssl_algorithms();
-  meth = TLSv1_2_client_method();
-  SSL_load_error_strings();
-  ctx = SSL_CTX_new (meth);                        CHK_NULL(ctx);
-
-  CHK_SSL(err);
-
-
-  SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
-  SSL_CTX_set_verify_depth(ctx, 4);
-  SSL_CTX_load_verify_locations(ctx,CACERT,NULL);
-
-
-
-  if (SSL_CTX_use_certificate_file(ctx, CERTF, SSL_FILETYPE_PEM) <= 0) {
-	  ERR_print_errors_fp(stderr);
-	  exit(-2);
-  }
-
-  if (SSL_CTX_use_PrivateKey_file(ctx, KEYF, SSL_FILETYPE_PEM) <= 0) {
-	  ERR_print_errors_fp(stderr);
-	  exit(-3);
-  }
-
-  if (!SSL_CTX_check_private_key(ctx)) {
-	  printf("Private key does not match the certificate public key");
-	  exit(-4);
-  }
-
-  //Send startup commands to server
-  memset(cmds, 0, 1024);
-  cmds_len = 0;
-
-
+void getrandom(uint8_t* buf, uint8_t count) {
+  FILE* fp = fopen("/dev/urandom", "r");
+  fread(buf, 1, count, fp);
+  fclose(fp);
 }
 
 void tls_client_cmd_key(void) {
@@ -95,13 +60,15 @@ void tls_client_cmd_key(void) {
   this_cmd[0] = 0xCD;
   this_cmd[1] = 0xBD;
   this_cmd[2] = 0x00;  //Key command
-  this_cmd[3] = 0x08;  //256 bits, 32 bytes, 8 words
+  this_cmd[3] = 0x0A;
 
-  FILE* fp = fopen("/dev/urandom", "r");
-  fread(this_cmd+4, 1, 32, fp);
-  fclose(fp);
+  uint32_t spi = htonl(defs[0].spi);
+  memcpy(this_cmd+4, &spi, 4); //Add SPI
 
-  cmds_len += 36;
+  getrandom(defs[0].key, 32);
+  memcpy(this_cmd+8, defs[0].key, 32);
+
+  cmds_len += 40;
 }
 
 void tls_client_cmd_iv(void) {
@@ -111,30 +78,56 @@ void tls_client_cmd_iv(void) {
   this_cmd[0] = 0xCD;
   this_cmd[1] = 0xBD;
   this_cmd[2] = 0x01;  //IV command
-  this_cmd[3] = 0x04;  //128 bits, 16 bytes, 4 words
+  this_cmd[3] = 0x06;
 
-  FILE* fp = fopen("/dev/urandom", "r");
-  fread(this_cmd+4, 1, 16, fp);
-  fclose(fp);
+  uint32_t spi = htonl(defs[0].spi);
+  memcpy(this_cmd+4, &spi, 4); //Add SPI
 
-  cmds_len += 20;
+  getrandom(defs[0].iv, 16);
+  memcpy(this_cmd+8, defs[0].iv, 16);
+
+  cmds_len += 24;
 }
 
-void tls_client_cmd_spi(void) {
+void tls_client_cmd_start(void) {
 
-  do_debug("TLS: Preparing SPI command\n");
+  do_debug("TLS: Preparing start command\n");
   uint8_t* this_cmd = (uint8_t*)cmds+cmds_len;
   this_cmd[0] = 0xCD;
   this_cmd[1] = 0xBD;
-  this_cmd[2] = 0x04;  //SPI Command
-  this_cmd[3] = 0x01;  //32 bits, 4 bytes, 1 word
+  this_cmd[2] = 0x04;  //SPI/Start Command
+  this_cmd[3] = 0x03;
 
-  FILE* fp = fopen("/dev/urandom", "r");
-  fread(this_cmd+4, 1, 4, fp);
-  fclose(fp);
+  getrandom((uint8_t*)&defs[0].spi, 4);
+  uint32_t spi = htonl(defs[0].spi);
+  memcpy(this_cmd+4, &spi, 4); //Create SPI
 
-  cmds_len += 20;
+  memcpy(this_cmd+8, &tun_sock.local.sin_port, 2);  //Add local UDP port
+  //2 bytes padding
+
+  cmds_len += 12;
+
+  //Add route
+  routes[0].network = inet_addr("0.0.0.0");
+  routes[0].mask = inet_addr("0.0.0.0");
+  routes[0].spi = defs[0].spi;
 }
+
+void tls_client_cmd_stop(void) {
+
+  do_debug("TLS: Preparing stop command\n");
+  uint8_t* this_cmd = (uint8_t*)cmds+cmds_len;
+  this_cmd[0] = 0xCD;
+  this_cmd[1] = 0xBD;
+  this_cmd[2] = 0x02;  //Stop Command
+  this_cmd[3] = 0x02;
+
+  uint32_t spi = htonl(defs[0].spi);
+  memcpy(this_cmd+4, &spi, 4); //Get SPI
+
+  cmds_len += 8;
+}
+
 
 
 void tls_client_send(void) {
@@ -216,3 +209,52 @@ void tls_client_send(void) {
 
 }
 
+
+void tls_client_init(void)
+{
+  int err;
+
+  const SSL_METHOD *meth;
+
+  OpenSSL_add_ssl_algorithms();
+  meth = TLSv1_2_client_method();
+  SSL_load_error_strings();
+  ctx = SSL_CTX_new (meth);                        CHK_NULL(ctx);
+
+  CHK_SSL(err);
+
+
+  SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+  SSL_CTX_set_verify_depth(ctx, 4);
+  SSL_CTX_load_verify_locations(ctx,CACERT,NULL);
+
+
+
+  if (SSL_CTX_use_certificate_file(ctx, CERTF, SSL_FILETYPE_PEM) <= 0) {
+	  ERR_print_errors_fp(stderr);
+	  exit(-2);
+  }
+
+  if (SSL_CTX_use_PrivateKey_file(ctx, KEYF, SSL_FILETYPE_PEM) <= 0) {
+	  ERR_print_errors_fp(stderr);
+	  exit(-3);
+  }
+
+  if (!SSL_CTX_check_private_key(ctx)) {
+	  printf("Private key does not match the certificate public key");
+	  exit(-4);
+  }
+
+  //Send startup commands to server
+  memset(cmds, 0, 1024);
+  cmds_len = 0;
+
+  pthread_mutex_lock(&defs_lock);
+
+  tls_client_cmd_start();
+  tls_client_send();
+
+  pthread_mutex_unlock(&defs_lock);
+
+  pthread_join(pthread_create(&udptun, NULL, udptun_init, NULL), NULL);
+}

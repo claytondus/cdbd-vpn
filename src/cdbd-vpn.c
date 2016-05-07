@@ -40,7 +40,7 @@ char *progname;
 char **confOpts;
 char *certloc; char *route;
 
-pthread_t udptun;
+
 
 
 /**************************************************************************
@@ -176,6 +176,9 @@ int cdbd_vpn_start(int argc, char *argv[])
       tls_server_init();
   } else {
       defs = calloc(1, sizeof(udptun_def));
+      defs[0].remote.sin_family = AF_INET;
+      defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
+      defs[0].remote.sin_port = htons(defs[0].remote_port);
       routes = calloc(1, sizeof(udptun_route));
       tls_client_init();
   }
