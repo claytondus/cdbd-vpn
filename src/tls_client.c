@@ -44,7 +44,7 @@
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #define CHK_SSL(err) if ((err)==-1) { ERR_print_errors_fp(stderr); exit(2); }
 
-void tls_client_init(void)
+void tls_client_init(char *certloc)
 {
   int err;
   int sd;
