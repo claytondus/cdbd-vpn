@@ -105,7 +105,7 @@ void tls_server_init(void)
 
   err = listen (listen_sd, 5);                    CHK_ERR(err, "listen");
 
-  printf("Listening on %s, port %d\n", inet_ntoa(sa_serv.sin_addr), sa_serv.sin_port);
+  printf("Listening on %s, port %d\n", inet_ntoa(sa_serv.sin_addr), ntohs(sa_serv.sin_port));
 
   client_len = sizeof(sa_cli);
 
@@ -113,7 +113,7 @@ void tls_server_init(void)
     sd = accept(listen_sd, (struct sockaddr*)&sa_cli, (socklen_t*)&client_len);
     CHK_ERR(sd, "accept");
 
-    printf ("Connection from %s, port %d\n", inet_ntoa(sa_cli.sin_addr), sa_cli.sin_port);
+    printf ("Connection from %s, port %d\n", inet_ntoa(sa_cli.sin_addr), ntohs(sa_cli.sin_port));
 
     /* ----------------------------------------------- */
     /* TCP connection is ready. Do server side SSL. */
