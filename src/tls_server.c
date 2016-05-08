@@ -55,7 +55,7 @@ void tls_server_init(void)
   uint8_t     buf [4096];
   const SSL_METHOD *meth;
   udptun_def *this_def, *prev_def, *next_def;
-  uint32_t spi;
+  uint32_t spi, spi_n;
   uint8_t* bufp;
   uint8_t msg_len, msg_type;
   udptun_route *this_route, *prev_route, *next_route;
@@ -167,9 +167,10 @@ void tls_server_init(void)
     //Process the commands; loop until the magic number isn't there
     while((bufp[0] == 0xCD) && (bufp[1] == 0xBD)) {
 
-      msg_len = *(buf+2);
-      msg_type = *(buf+3);
-      spi = ntohl(*(buf+4));
+      msg_type = *(buf+2);
+      msg_len = *(buf+3);
+      memcpy(&spi_n, buf+4, 4);
+      spi = ntohl(spi_n);
 
       //If this is a start command
       if(msg_type == 0x04) {
@@ -210,7 +211,7 @@ void tls_server_init(void)
 
       //If this is a route command
       if(msg_type == 0x03) {
-	  do_debug("Received new route for SPI %x\n",spi);
+	  do_debug("Received new route for SPI %xl\n",spi);
 	  this_route = calloc(1, sizeof(udptun_route));
 	  if(routes != NULL) {
 	      this_route->next = routes;
