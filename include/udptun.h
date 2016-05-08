@@ -52,7 +52,7 @@ struct udptun_def {
   uint8_t key[32];  //256 bit
   uint8_t iv[16];   //128 bit
   char local_ip[16];
-  char* route;
+  char route[33];
   bool ka;
   struct udptun_def* next;
 };

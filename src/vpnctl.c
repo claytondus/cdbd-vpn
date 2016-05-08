@@ -13,13 +13,12 @@ char *progname;
 
 void vpnctl_usage(void) {
   fprintf(stderr, "Usage:\n");
-  fprintf(stderr, "%s -i <ifacename> [-s|-c <serverIP>] [-p <port>] [-u|-a] [-d]\n", progname);
+  fprintf(stderr, "%s [-s] [-k] [-i]\n", progname);
   fprintf(stderr, "%s -h\n", progname);
   fprintf(stderr, "\n");
-  fprintf(stderr, "-i <ifacename>: Name of interface to use (mandatory)\n");
-  fprintf(stderr, "-s|-c <serverIP>: run in server mode (-s), or specify server address (-c <serverIP>) (mandatory)\n");
-  fprintf(stderr, "-p <port>: port to listen on (if run in server mode) or to connect to (in client mode), default 55555\n");
-  fprintf(stderr, "-d: outputs debug information while running\n");
+  fprintf(stderr, "-s: sends shutdown command to server and terminates client\n");
+  fprintf(stderr, "-i: sends re-IV command to server\n");
+  fprintf(stderr, "-k: sends re-key command to server\n");
   fprintf(stderr, "-h: prints this help text\n");
   exit(1);
 }

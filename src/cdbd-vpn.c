@@ -48,13 +48,14 @@ char *certloc; char *route;
  **************************************************************************/
 void usage(void) {
   fprintf(stderr, "Usage:\n");
-  fprintf(stderr, "%s -i <ifacename> [-s|-c <serverIP>] [-p <port>] [-u|-a] [-d]\n", progname);
+  fprintf(stderr, "%s -i <ifacename> [-s|-c <serverIP>] [-p <port>] [-a <ifaceIP>] [-r <network>/<mask> [-d]\n", progname);
   fprintf(stderr, "%s -h\n", progname);
   fprintf(stderr, "\n");
   fprintf(stderr, "-i <ifacename>: Name of interface to use (mandatory)\n");
   fprintf(stderr, "-s|-c <serverIP>: run in server mode (-s), or specify server address (-c <serverIP>) (mandatory)\n");
   fprintf(stderr, "-p <port>: port to listen on (if run in server mode) or to connect to (in client mode), default 55555\n");
-  fprintf(stderr, "-a <ifaceIP>: tunnel interface IP (mandatory)\n");
+  fprintf(stderr, "-a <ifaceIP>: tunnel interface IP (mandatory for client)\n");
+  fprintf(stderr, "-r <network>/<mask>: Server routes a network to this client (in client mode) \n");
   fprintf(stderr, "-d: outputs debug information while running\n");
   fprintf(stderr, "-h: prints this help text\n");
   exit(1);
@@ -98,6 +99,8 @@ int cdbd_vpn_start(int argc, char *argv[])
   remote_ip[0] = '\0';
   char tun_ip[16];
   tun_ip[0] = '\0';
+  char cli_route[33];
+  cli_route[0] = '\0';
 
   pthread_mutex_init(&defs_lock,NULL);
 
@@ -109,7 +112,7 @@ int cdbd_vpn_start(int argc, char *argv[])
   progname = argv[0];
 
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:sc:p:hdf:a:")) > 0) {
+  while((option = getopt(argc, argv, "i:sc:p:hdf:a:r:")) > 0) {
 	switch(option) {
 	  case 'd':
 		debug = 1;
@@ -129,16 +132,19 @@ int cdbd_vpn_start(int argc, char *argv[])
 		break;
 	  case 'p':
 		remote_port = (uint16_t)strtoul(optarg, NULL, 0);
-		tun_sock.port = (uint16_t)strtoul(optarg, NULL, 0);
+		tun_sock.port = remote_port;
 		break;
 	  case 'f':
 		confOpts = read_config_file(optarg);
 		certloc = confOpts[0];
-		defs[0].route = confOpts[1];
+		strcpy(confOpts[1], defs[0].route);
 		defs[0].ka = !!atoi(confOpts[2]);
 	        break;
 	  case 'a':
 		strncpy(tun_ip,optarg,15);
+		break;
+	  case 'r':
+		strncpy(cli_route,optarg,33);
 		break;
 	  default:
 		my_err("Unknown option %c\n", option);
@@ -160,7 +166,7 @@ int cdbd_vpn_start(int argc, char *argv[])
   } else if(tun_sock.mode < 0) {
 	my_err("Must specify client or server mode!\n");
 	usage();
-  } else if(tun_ip == '\0') {
+  } else if((tun_sock.mode == CLIENT)&&(tun_ip == '\0')) {
 	my_err("Must specify tunnel interface IP!\n");
 	usage();
   } else if((tun_sock.mode == CLIENT)&&(remote_ip == '\0')) {
@@ -183,6 +189,7 @@ int cdbd_vpn_start(int argc, char *argv[])
       defs[0].remote.sin_family = AF_INET;
       defs[0].remote.sin_addr.s_addr = inet_addr(defs[0].remote_ip);
       defs[0].remote.sin_port = htons(defs[0].remote_port);
+      strcpy(defs[0].route, cli_route);
       routes = calloc(1, sizeof(udptun_route));
       tls_client_init();
   }

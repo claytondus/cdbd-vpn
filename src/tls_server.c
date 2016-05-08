@@ -60,6 +60,7 @@ void tls_server_init(void)
   uint8_t msg_len, msg_type;
   udptun_route *this_route, *prev_route, *next_route;
   struct in_addr network, mask;
+  char network_c[16];
 
   /* SSL preliminaries. We keep the certificate and key with the context. */
 
@@ -159,7 +160,9 @@ void tls_server_init(void)
 
     //Handle messages from client
     err = SSL_read(ssl, buf, sizeof(buf));		          CHK_SSL(err);
-    BIO_dump_fp(stdout, (const char*)buf, 512);
+    if(debug) {
+	BIO_dump_fp(stdout, (const char*)buf, 512);
+    }
 
     bufp = buf;
 
@@ -202,14 +205,18 @@ void tls_server_init(void)
       if(msg_type == 0x00) {
 	  do_debug("Received new key on SPI %x\n",spi);
 	  memcpy(this_def->key, bufp+8, 32);
-	  BIO_dump_fp(stdout, (const char*)this_def->key, 32);
+	  if(debug) {
+	      BIO_dump_fp(stdout, (const char*)this_def->key, 32);
+	  }
       }
 
       //If this is an IV command
       if(msg_type == 0x01) {
 	  do_debug("Received new IV on SPI %x\n",spi);
 	  memcpy(this_def->iv, bufp+8, 16);
-	  BIO_dump_fp(stdout, (const char*)this_def->iv, 32);
+	  if(debug) {
+	      BIO_dump_fp(stdout, (const char*)this_def->iv, 32);
+	  }
       }
 
       //If this is a route command
@@ -227,8 +234,9 @@ void tls_server_init(void)
 	  this_route->spi = spi;
 
 	  network.s_addr = this_route->network;
+	  strcpy(network_c, inet_ntoa(network));
 	  mask.s_addr = this_route->mask;
-	  do_debug("Installed route %s %s to SPI %x\n", inet_ntoa(network), inet_ntoa(mask), spi);
+	  do_debug("Installed route %s/%s to SPI %x\n", network_c, inet_ntoa(mask), spi);
       }
 
       //If this is a stop command

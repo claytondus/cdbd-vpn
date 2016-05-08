@@ -20,7 +20,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <mqueue.h>
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
 #include <openssl/pem.h>
@@ -69,7 +68,9 @@ void tls_client_cmd_key(void) {
 
   getrandom(defs[0].key, 32);
   memcpy(this_cmd+8, defs[0].key, 32);
-  BIO_dump_fp(stdout, (const char*)defs[0].key, 32);
+  if(debug) {
+      BIO_dump_fp(stdout, (const char*)defs[0].key, 32);
+  }
 
   cmds_len += 40;
 }
@@ -88,7 +89,9 @@ void tls_client_cmd_iv(void) {
 
   getrandom(defs[0].iv, 16);
   memcpy(this_cmd+8, defs[0].iv, 16);
-  BIO_dump_fp(stdout, (const char*)defs[0].key, 16);
+  if(debug) {
+      BIO_dump_fp(stdout, (const char*)defs[0].key, 16);
+  }
 
   cmds_len += 24;
 }
@@ -238,6 +241,9 @@ void tls_client_init(void)
   int err;
 
   const SSL_METHOD *meth;
+  char network_tok[16];
+  char mask_tok[16];
+  const char route_delim[2] = "/";
 
   OpenSSL_add_ssl_algorithms();
   meth = TLSv1_2_client_method();
@@ -278,6 +284,13 @@ void tls_client_init(void)
   tls_client_cmd_key();
   tls_client_cmd_iv();
   tls_client_cmd_route(defs[0].local_ip, "255.255.255.255");
+  if(defs[0].route[0] != 0x00) {
+      char* network_tokp = strtok(defs[0].route, route_delim);
+      strcpy(network_tok, network_tokp);
+      char* mask_tokp = strtok(NULL, route_delim);
+      strcpy(mask_tok, mask_tokp);
+      tls_client_cmd_route(network_tok, mask_tok);
+  }
   tls_client_send();
 
   pthread_mutex_unlock(&defs_lock);
