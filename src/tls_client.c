@@ -191,21 +191,21 @@ void tls_client_send(void) {
 
   /* Get the cipher - opt */
 
-  printf ("SSL connection using %s\n", SSL_get_cipher (ssl));
+  do_debug ("SSL connection using %s\n", SSL_get_cipher (ssl));
 
   /* Get server's certificate (note: beware of dynamic allocation) - opt */
 
   server_cert = SSL_get_peer_certificate (ssl);       CHK_NULL(server_cert);
-  printf ("Server certificate:\n");
+  do_debug ("Server certificate:\n");
 
   str = X509_NAME_oneline (X509_get_subject_name (server_cert),0,0);
   CHK_NULL(str);
-  printf ("\t subject: %s\n", str);
+  do_debug ("\t subject: %s\n", str);
   OPENSSL_free (str);
 
   str = X509_NAME_oneline (X509_get_issuer_name  (server_cert),0,0);
   CHK_NULL(str);
-  printf ("\t issuer: %s\n", str);
+  do_debug ("\t issuer: %s\n", str);
   OPENSSL_free (str);
 
   /* We could do all sorts of certificate verification stuff here before

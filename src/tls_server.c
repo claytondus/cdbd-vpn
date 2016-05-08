@@ -110,7 +110,7 @@ void tls_server_init(void)
 
   err = listen (listen_sd, 5);                    CHK_ERR(err, "listen");
 
-  printf("Listening on %s, port %d\n", inet_ntoa(sa_serv.sin_addr), ntohs(sa_serv.sin_port));
+  do_debug("Listening on %s, port %d\n", inet_ntoa(sa_serv.sin_addr), ntohs(sa_serv.sin_port));
 
   client_len = sizeof(sa_cli);
 
@@ -118,7 +118,7 @@ void tls_server_init(void)
     sd = accept(listen_sd, (struct sockaddr*)&sa_cli, (socklen_t*)&client_len);
     CHK_ERR(sd, "accept");
 
-    printf ("Connection from %s, port %d\n", inet_ntoa(sa_cli.sin_addr), ntohs(sa_cli.sin_port));
+    do_debug("Connection from %s, port %d\n", inet_ntoa(sa_cli.sin_addr), ntohs(sa_cli.sin_port));
 
     /* ----------------------------------------------- */
     /* TCP connection is ready. Do server side SSL. */
@@ -129,22 +129,22 @@ void tls_server_init(void)
 
     /* Get the cipher - opt */
 
-    printf ("SSL connection using %s\n", SSL_get_cipher (ssl));
+    do_debug("SSL connection using %s\n", SSL_get_cipher (ssl));
 
     /* Get client's certificate (note: beware of dynamic allocation) - opt */
 
     client_cert = SSL_get_peer_certificate (ssl);
     if (client_cert != NULL) {
-      printf ("Client certificate:\n");
+      do_debug("Client certificate:\n");
 
       str = X509_NAME_oneline (X509_get_subject_name (client_cert), 0, 0);
       CHK_NULL(str);
-      printf ("\t subject: %s\n", str);
+      do_debug("\t subject: %s\n", str);
       OPENSSL_free (str);
 
       str = X509_NAME_oneline (X509_get_issuer_name  (client_cert), 0, 0);
       CHK_NULL(str);
-      printf ("\t issuer: %s\n", str);
+      do_debug("\t issuer: %s\n", str);
       OPENSSL_free (str);
 
       /* We could do all sorts of certificate verification stuff here before
