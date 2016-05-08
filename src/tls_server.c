@@ -225,7 +225,7 @@ void tls_server_init(void)
 
 	  network.s_addr = this_route->network;
 	  mask.s_addr = this_route->mask;
-	  do_debug("Installed route %s %s to SPI %s", inet_ntoa(network), inet_ntoa(mask));
+	  do_debug("Installed route %s %s to SPI %x\n", inet_ntoa(network), inet_ntoa(mask), spi);
       }
 
       //If this is a stop command
