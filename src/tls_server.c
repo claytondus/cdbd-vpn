@@ -167,15 +167,15 @@ void tls_server_init(void)
     //Process the commands; loop until the magic number isn't there
     while((bufp[0] == 0xCD) && (bufp[1] == 0xBD)) {
 
-      msg_type = *(buf+2);
-      msg_len = *(buf+3);
-      memcpy(&spi_n, buf+4, 4);
+      msg_type = bufp[2];
+      msg_len = bufp[3];
+      memcpy(&spi_n, bufp+4, 4);
       spi = ntohl(spi_n);
 
       //If this is a start command
       if(msg_type == 0x04) {
 
-	  do_debug("Setting up new tunnel with SPI %x",spi);
+	  do_debug("Setting up new tunnel with SPI %x\n",spi);
 	  //Allocate tunnel
 	  this_def = calloc(1, sizeof(udptun_def));
 	  if(defs != NULL) {
@@ -187,6 +187,7 @@ void tls_server_init(void)
 	  memcpy(&this_def->remote.sin_port, bufp+8, 2);
 	  this_def->spi = spi;
 	  defs = this_def;
+	  do_debug("SPI %x will send traffic to UDP port %s:%d\n", spi, inet_ntoa(this_def->remote.sin_addr), ntohs(this_def->remote.sin_port));
 
       } else {
 	//Find a tunnel associated with the SPI
@@ -218,8 +219,8 @@ void tls_server_init(void)
 	  } else {
 	      this_route->next = NULL;
 	  }
-	  this_route->network = *(buf+8);
-	  this_route->mask = *(buf+12);
+	  this_route->network = *(bufp+8);
+	  this_route->mask = *(bufp+12);
 	  this_route->spi = spi;
 
 	  network.s_addr = this_route->network;
@@ -267,7 +268,7 @@ void tls_server_init(void)
       }
 
 
-      bufp += msg_len*4;  //32 bit words in msg_len
+      bufp += (msg_len*4);  //32 bit words in msg_len
     }
 
     /* Clean up. */
