@@ -161,6 +161,11 @@ void tls_client_send(void) {
   X509*    server_cert;
   char*    str;
 
+  if(debug) {
+      do_debug("Sending commands:\n");
+      BIO_dump_fp(stdout, (const char*)cmds, cmds_len);
+  }
+
   /* ----------------------------------------------- */
   /* Create a socket and connect to server using normal socket calls. */
 

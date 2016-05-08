@@ -139,6 +139,7 @@ int cdbd_vpn_start(int argc, char *argv[])
 	        break;
 	  case 'a':
 		strncpy(tun_ip,optarg,15);
+		break;
 	  default:
 		my_err("Unknown option %c\n", option);
 		usage();

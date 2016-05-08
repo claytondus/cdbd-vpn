@@ -59,6 +59,7 @@ void tls_server_init(void)
   uint8_t* bufp;
   uint8_t msg_len, msg_type;
   udptun_route *this_route, *prev_route, *next_route;
+  struct in_addr network, mask;
 
   /* SSL preliminaries. We keep the certificate and key with the context. */
 
@@ -157,6 +158,7 @@ void tls_server_init(void)
 
     //Handle messages from client
     err = SSL_read(ssl, buf, sizeof(buf));		          CHK_SSL(err);
+    BIO_dump_fp(stdout, (const char*)buf, 512);
 
     bufp = buf;
 
@@ -217,6 +219,10 @@ void tls_server_init(void)
 	  this_route->network = *(buf+8);
 	  this_route->mask = *(buf+12);
 	  this_route->spi = spi;
+
+	  network.s_addr = this_route->network;
+	  mask.s_addr = this_route->mask;
+	  do_debug("Installed route %s %s to SPI %s", inet_ntoa(network), inet_ntoa(mask));
       }
 
       //If this is a stop command
@@ -264,6 +270,7 @@ void tls_server_init(void)
 
     /* Clean up. */
   cleanup:
+    do_debug("Command processing done\n");
     pthread_mutex_unlock(&defs_lock);
     close (sd);
     SSL_free (ssl);
