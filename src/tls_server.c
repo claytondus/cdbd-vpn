@@ -219,8 +219,8 @@ void tls_server_init(void)
 	  } else {
 	      this_route->next = NULL;
 	  }
-	  this_route->network = *(bufp+8);
-	  this_route->mask = *(bufp+12);
+	  memcpy(&this_route->network, bufp+8, 4);
+	  memcpy(&this_route->mask, bufp+12, 4);
 	  this_route->spi = spi;
 
 	  network.s_addr = this_route->network;

@@ -249,6 +249,7 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 	  //Only single tunnel on client
 	  dest_tun = defs;
       }
+      do_debug("Routing packet to SPI %x",spi);
 
       //Set SPI, seq number
       //Encrypt
