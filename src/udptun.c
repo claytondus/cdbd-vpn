@@ -124,7 +124,7 @@ uint32_t udptun_route_packet(uint8_t *pkt) {
   struct in_addr ip_str;
 
   //Extract destination IP from packet (16th to 20th byte)
-  memcpy(&dest_ip, pkt+15, sizeof(in_addr_t));
+  memcpy(&dest_ip, pkt+16, sizeof(in_addr_t));
 
   ip_str.s_addr = dest_ip;
   do_debug("Packet destination is %s\n",inet_ntoa(ip_str));
@@ -258,7 +258,7 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 	  //Only single tunnel on client
 	  dest_tun = defs;
       }
-      do_debug("Routing packet to SPI %x",spi);
+      do_debug("Routing packet to SPI %x\n",spi);
 
       //Set SPI, seq number
       //Encrypt

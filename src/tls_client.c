@@ -69,6 +69,7 @@ void tls_client_cmd_key(void) {
 
   getrandom(defs[0].key, 32);
   memcpy(this_cmd+8, defs[0].key, 32);
+  BIO_dump_fp(stdout, (const char*)defs[0].key, 32);
 
   cmds_len += 40;
 }
@@ -87,6 +88,7 @@ void tls_client_cmd_iv(void) {
 
   getrandom(defs[0].iv, 16);
   memcpy(this_cmd+8, defs[0].iv, 16);
+  BIO_dump_fp(stdout, (const char*)defs[0].key, 16);
 
   cmds_len += 24;
 }
@@ -273,6 +275,8 @@ void tls_client_init(void)
   pthread_mutex_lock(&defs_lock);
 
   tls_client_cmd_start();
+  tls_client_cmd_key();
+  tls_client_cmd_iv();
   tls_client_cmd_route(defs[0].local_ip, "255.255.255.255");
   tls_client_send();
 
@@ -309,6 +313,10 @@ void tls_client_init(void)
     }
     tls_client_send();
     pthread_mutex_unlock(&defs_lock);
+
+    if(command == 0x02) {
+	exit(0);
+    }
 
   }
 }

@@ -201,13 +201,15 @@ void tls_server_init(void)
       //If this is a key command
       if(msg_type == 0x00) {
 	  do_debug("Received new key on SPI %x\n",spi);
-	  memcpy(&this_def->key, bufp+4, 32);
+	  memcpy(this_def->key, bufp+8, 32);
+	  BIO_dump_fp(stdout, (const char*)this_def->key, 32);
       }
 
       //If this is an IV command
       if(msg_type == 0x01) {
 	  do_debug("Received new IV on SPI %x\n",spi);
-	  memcpy(&this_def->iv, bufp+4, 16);
+	  memcpy(this_def->iv, bufp+8, 16);
+	  BIO_dump_fp(stdout, (const char*)this_def->iv, 32);
       }
 
       //If this is a route command
@@ -217,6 +219,7 @@ void tls_server_init(void)
 	  if(routes != NULL) {
 	      this_route->next = routes;
 	  } else {
+	      routes = this_route;
 	      this_route->next = NULL;
 	  }
 	  memcpy(&this_route->network, bufp+8, 4);
@@ -236,6 +239,7 @@ void tls_server_init(void)
 	  this_route = routes;
 	  for(this_route = routes; this_route != NULL; ) {
 	      if (this_route->spi == spi) {
+		  do_debug("Deleting route for SPI %x\n",spi);
 		  if(prev_route == NULL) {  //delete at beginning of list
 		      routes = this_route->next;
 		  } else {   //join next to previous
@@ -252,6 +256,7 @@ void tls_server_init(void)
 	  //Delete tunnel definition
 	  for(this_def = defs; this_def != NULL; ) {
 	      if (this_def->spi == spi) {
+		  do_debug("Deleting tunnel for SPI %x\n",spi);
 		  if(prev_def == NULL) {  //delete at beginning of list
 		      defs = this_def->next;
 		  } else {   //join next to previous
@@ -275,10 +280,10 @@ void tls_server_init(void)
   cleanup:
     do_debug("Command processing done\n");
     pthread_mutex_unlock(&defs_lock);
-    close (sd);
     SSL_free (ssl);
-    SSL_CTX_free (ctx);
+    close (sd);
   }
+  SSL_CTX_free (ctx);
 
 }
 /* EOF - serv.cpp */
