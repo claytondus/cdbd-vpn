@@ -25,7 +25,7 @@
 #include <openssl/err.h>
 
 #include "udptun.h"
-
+#include "debug.h"
 
 /* define HOME to be dir for key and cert files... */
 #define HOME "./certs/"
@@ -171,6 +171,7 @@ void tls_server_init(void)
       //If this is a start command
       if(msg_type == 0x04) {
 
+	  do_debug("Setting up new tunnel with SPI %x",spi);
 	  //Allocate tunnel
 	  this_def = calloc(1, sizeof(udptun_def));
 	  if(defs != NULL) {
@@ -183,17 +184,6 @@ void tls_server_init(void)
 	  this_def->spi = spi;
 	  defs = this_def;
 
-	  //Insert host route
-	  this_route = calloc(1, sizeof(udptun_route));
-	  if(routes != NULL) {
-	      this_route->next = routes;
-	  } else {
-	      this_route->next = NULL;
-	  }
-	  this_route->network = sa_cli.sin_addr.s_addr;
-	  this_route->mask = inet_addr("255.255.255.255");
-	  this_route->spi = spi;
-
       } else {
 	//Find a tunnel associated with the SPI
 	for(this_def = defs; this_def != NULL; this_def = this_def->next) {
@@ -205,16 +195,19 @@ void tls_server_init(void)
 
       //If this is a key command
       if(msg_type == 0x00) {
+	  do_debug("Received new key on SPI %x\n",spi);
 	  memcpy(&this_def->key, bufp+4, 32);
       }
 
       //If this is an IV command
       if(msg_type == 0x01) {
+	  do_debug("Received new IV on SPI %x\n",spi);
 	  memcpy(&this_def->iv, bufp+4, 16);
       }
 
       //If this is a route command
       if(msg_type == 0x03) {
+	  do_debug("Received new route for SPI %x\n",spi);
 	  this_route = calloc(1, sizeof(udptun_route));
 	  if(routes != NULL) {
 	      this_route->next = routes;
@@ -228,6 +221,7 @@ void tls_server_init(void)
 
       //If this is a stop command
       if(msg_type == 0x02) {
+	  do_debug("Received stop request for SPI %x\n",spi);
 	  //Delete routes
 	  prev_route = NULL;
 	  this_route = routes;

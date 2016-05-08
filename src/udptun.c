@@ -240,12 +240,12 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
 	  if((spi = udptun_route_packet(pkt_buffer)) != 0) {
 	      if((dest_tun = udptun_lookup_spi(spi)) == NULL) {
 		    //Can not route packet
-		    do_debug("Dropping packet, SPI does not exist");
+		    do_debug("Dropping packet, SPI does not exist\n");
 		    pthread_mutex_unlock(&defs_lock);
 		    continue;
 	      }
 	  } else {
-	      do_debug("Dropping packet, no route to host");
+	      do_debug("Dropping packet, no route to host\n");
 	      pthread_mutex_unlock(&defs_lock);
 	      continue;
 	  }

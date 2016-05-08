@@ -109,7 +109,7 @@ void tls_client_cmd_start(void) {
 
   cmds_len += 12;
 
-  //Add route
+  //Add default route for client side
   routes[0].network = inet_addr("0.0.0.0");
   routes[0].mask = inet_addr("0.0.0.0");
   routes[0].spi = defs[0].spi;
@@ -128,6 +128,27 @@ void tls_client_cmd_stop(void) {
   memcpy(this_cmd+4, &spi, 4); //Get SPI
 
   cmds_len += 8;
+}
+
+void tls_client_cmd_route(const char* network, const char* mask) {
+
+  do_debug("TLS: Preparing route command\n");
+  uint8_t* this_cmd = (uint8_t*)cmds+cmds_len;
+  this_cmd[0] = 0xCD;
+  this_cmd[1] = 0xBD;
+  this_cmd[2] = 0x03;  //Route command
+  this_cmd[3] = 0x04;
+
+  uint32_t spi = htonl(defs[0].spi);
+  memcpy(this_cmd+4, &spi, 4); //Add SPI
+
+  in_addr_t local_ip = inet_addr(network);
+  memcpy(this_cmd+8, &local_ip, 4);
+
+  in_addr_t local_mask = inet_addr(mask);
+  memcpy(this_cmd+12, &local_mask, 4);
+
+  cmds_len += 16;
 }
 
 
@@ -247,6 +268,7 @@ void tls_client_init(void)
   pthread_mutex_lock(&defs_lock);
 
   tls_client_cmd_start();
+  tls_client_cmd_route(defs[0].local_ip, "255.255.255.255");
   tls_client_send();
 
   pthread_mutex_unlock(&defs_lock);

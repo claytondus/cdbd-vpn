@@ -43,7 +43,6 @@ typedef struct udptun_route udptun_route;
 
 //Represents a single tunnel
 struct udptun_def {
-  bool admin_state;   //Shutdown 0 / not shutdown 1
   uint32_t spi;
   uint32_t local_seq, remote_seq;
   unsigned long int net2tun, tun2net;
@@ -52,9 +51,9 @@ struct udptun_def {
   unsigned short int remote_port;
   uint8_t key[32];  //256 bit
   uint8_t iv[16];   //128 bit
+  char local_ip[16];
   char* route;
   bool ka;
-  //State (UP, DOWN, UNKNOWN)
   struct udptun_def* next;
 };
 typedef struct udptun_def udptun_def;
