@@ -121,19 +121,28 @@ uint32_t udptun_route_packet(uint8_t *pkt) {
   in_addr_t dest_ip, masked;
   uint32_t longest_match, mask_len, match = 0;
   udptun_route* this_route;
+  struct in_addr ip_str;
 
   //Extract destination IP from packet (16th to 20th byte)
   memcpy(&dest_ip, pkt+15, sizeof(in_addr_t));
+
+  ip_str.s_addr = dest_ip;
+  do_debug("Packet destination is %s\n",inet_ntoa(ip_str));
 
   //Loop through routes and find longest match
   for(this_route = routes; this_route != NULL; this_route = this_route->next) {
       //Mask off dest_ip with route mask
       masked = dest_ip & this_route->mask;
+      ip_str.s_addr = masked;
+      do_debug("Masked destination IP is %s\n",inet_ntoa(ip_str));
 
       if(this_route->network == masked) {
+	  ip_str.s_addr = this_route->network;
+	  do_debug("Testing network %s\n",inet_ntoa(ip_str));
 	  //Save match if it is the longest
 	  mask_len = ntohl(this_route->mask);
 	  if(mask_len > longest_match) {
+	      do_debug("Got match\n");
 	      longest_match = mask_len;
 	      match = this_route->spi;
 	  }
