@@ -168,6 +168,11 @@ int cdbd_vpn_start(int argc, char *argv[])
 	usage();
   }
 
+  memset(&tun_sock.local, 0, sizeof(tun_sock.local));
+  tun_sock.local.sin_family = AF_INET;
+  tun_sock.local.sin_addr.s_addr = htonl(INADDR_ANY);
+  tun_sock.local.sin_port = htons(tun_sock.port);
+
   if(tun_sock.mode == SERVER) {
       tls_server_init();
   } else {

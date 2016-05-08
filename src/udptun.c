@@ -191,10 +191,6 @@ void* udptun_init(void* pt_data __attribute__((unused))) {
     exit(1);
   }
 
-  memset(&tun_sock.local, 0, sizeof(tun_sock.local));
-  tun_sock.local.sin_family = AF_INET;
-  tun_sock.local.sin_addr.s_addr = htonl(INADDR_ANY);
-  tun_sock.local.sin_port = htons(tun_sock.port);
   if (bind(sock_fd, (struct sockaddr*) &tun_sock.local, sizeof(tun_sock.local)) < 0) {
     perror("bind()");
     exit(1);

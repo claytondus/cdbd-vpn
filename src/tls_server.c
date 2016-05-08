@@ -150,9 +150,10 @@ void tls_server_init(void)
 	 deallocating the certificate. */
 
       X509_free (client_cert);
-    } else
+    } else {
       printf ("Client does not have certificate.\n");
       goto cleanup;
+    }
 
     /* DATA EXCHANGE - Receive message and send reply. */
 
