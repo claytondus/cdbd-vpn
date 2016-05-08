@@ -223,12 +223,8 @@ void tls_server_init(void)
       if(msg_type == 0x03) {
 	  do_debug("Received new route for SPI %xl\n",spi);
 	  this_route = calloc(1, sizeof(udptun_route));
-	  if(routes != NULL) {
-	      this_route->next = routes;
-	  } else {
-	      routes = this_route;
-	      this_route->next = NULL;
-	  }
+	  this_route->next = routes;
+	  routes = this_route;
 	  memcpy(&this_route->network, bufp+8, 4);
 	  memcpy(&this_route->mask, bufp+12, 4);
 	  this_route->spi = spi;
