@@ -1,12 +1,14 @@
 /**************************************************************************
- * simpletun.c                                                            *
+ * The following is a modified version of simpletun.c intended to create  *
+ * a VPN tunnel through which a client passes UDP packets.                *       
  *                                                                        *
  * A simplistic, simple-minded, naive tunnelling program using tun/tap    *
- * interfaces and TCP. DO NOT USE THIS PROGRAM FOR SERIOUS PURPOSES.      *
+ * interfaces and TCP. Handles (badly) IPv4 for tun, ARP and IPv4 for     *
+ * tap. DO NOT USE THIS PROGRAM FOR SERIOUS PURPOSES.                     *
  *                                                                        *
  * You have been warned.                                                  *
  *                                                                        *
- * (C) 2010 Davide Brini.                                                 *
+ * (C) 2009 Davide Brini.                                                 *
  *                                                                        *
  * DISCLAIMER AND WARNING: this is all work in progress. The code is      *
  * ugly, the algorithms are naive, error checking and input validation    *
@@ -19,15 +21,14 @@
  * is to be taken "as is" and without any kind of warranty, implicit or   *
  * explicit. See the file LICENSE for further details.                    *
  *************************************************************************/ 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <net/if.h>
+#include <sys/socket.h>
+#include <linux/if.h>
 #include <linux/if_tun.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -36,27 +37,32 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <stdarg.h>
-
+#include "tunhelp.h"
+    
 /* buffer for reading from tun/tap interface, must be >= 1500 */
 #define BUFSIZE 2000   
 #define CLIENT 0
 #define SERVER 1
 #define PORT 55555
 
+/* some common lengths */
+#define IP_HDR_LEN 20
+#define ETH_HDR_LEN 14
+#define ARP_PKT_LEN 28
+
 int debug;
 char *progname;
 
 /**************************************************************************
  * tun_alloc: allocates or reconnects to a tun/tap device. The caller     *
- *            must reserve enough space in *dev.                          *
+ *            needs to reserve enough space in *dev.                      *
  **************************************************************************/
 int tun_alloc(char *dev, int flags) {
 
   struct ifreq ifr;
   int fd, err;
-  char *clonedev = "/dev/net/tun";
 
-  if( (fd = open(clonedev , O_RDWR)) < 0 ) {
+  if( (fd = open("/dev/net/tun", O_RDWR)) < 0 ) {
     perror("Opening /dev/net/tun");
     return fd;
   }
@@ -88,7 +94,7 @@ int cread(int fd, char *buf, int n){
   
   int nread;
 
-  if((nread=read(fd, buf, n)) < 0){
+  if((nread=read(fd, buf, n))<0){
     perror("Reading data");
     exit(1);
   }
@@ -103,7 +109,7 @@ int cwrite(int fd, char *buf, int n){
   
   int nwrite;
 
-  if((nwrite=write(fd, buf, n)) < 0){
+  if((nwrite=write(fd, buf, n))<0){
     perror("Writing data");
     exit(1);
   }
@@ -111,7 +117,7 @@ int cwrite(int fd, char *buf, int n){
 }
 
 /**************************************************************************
- * read_n: ensures we read exactly n bytes, and puts them into "buf".     *
+ * read_n: ensures we read exactly n bytes, and puts those into "buf".    *
  *         (unless EOF, of course)                                        *
  **************************************************************************/
 int read_n(int fd, char *buf, int n) {
@@ -119,7 +125,7 @@ int read_n(int fd, char *buf, int n) {
   int nread, left = n;
 
   while(left > 0) {
-    if ((nread = cread(fd, buf, left)) == 0){
+    if ((nread = cread(fd, buf, left))==0){
       return 0 ;      
     }else {
       left -= nread;
@@ -136,7 +142,7 @@ void do_debug(char *msg, ...){
   
   va_list argp;
   
-  if(debug) {
+  if(debug){
 	va_start(argp, msg);
 	vfprintf(stderr, msg, argp);
 	va_end(argp);
@@ -177,21 +183,25 @@ int main(int argc, char *argv[]) {
   int tap_fd, option;
   int flags = IFF_TUN;
   char if_name[IFNAMSIZ] = "";
+  int header_len = IP_HDR_LEN;
   int maxfd;
   uint16_t nread, nwrite, plength;
+//  uint16_t total_len, ethertype;
   char buffer[BUFSIZE];
   struct sockaddr_in local, remote;
-  char remote_ip[16] = "";            /* dotted quad IP string */
+  char remote_ip[16] = "";
   unsigned short int port = PORT;
   int sock_fd, net_fd, optval = 1;
   socklen_t remotelen;
   int cliserv = -1;    /* must be specified on cmd line */
   unsigned long int tap2net = 0, net2tap = 0;
-
+  tun *T;    /* tunnel struct made every time a client requests one */
+  clientudp_pack *C;    /* client populates this struct when it requests a tunnel */
+    
   progname = argv[0];
   
   /* Check command line options */
-  while((option = getopt(argc, argv, "i:sc:p:uahd")) > 0) {
+  while((option = getopt(argc, argv, "i:sc:p:uahd")) > 0){
     switch(option) {
       case 'd':
         debug = 1;
@@ -200,7 +210,7 @@ int main(int argc, char *argv[]) {
         usage();
         break;
       case 'i':
-        strncpy(if_name,optarg, IFNAMSIZ-1);
+        strncpy(if_name,optarg,IFNAMSIZ-1);
         break;
       case 's':
         cliserv = SERVER;
@@ -217,6 +227,7 @@ int main(int argc, char *argv[]) {
         break;
       case 'a':
         flags = IFF_TAP;
+        header_len = ETH_HDR_LEN;
         break;
       default:
         my_err("Unknown option %c\n", option);
@@ -227,18 +238,18 @@ int main(int argc, char *argv[]) {
   argv += optind;
   argc -= optind;
 
-  if(argc > 0) {
+  if(argc > 0){
     my_err("Too many options!\n");
     usage();
   }
 
-  if(*if_name == '\0') {
+  if(*if_name == '\0'){
     my_err("Must specify interface name!\n");
     usage();
-  } else if(cliserv < 0) {
+  }else if(cliserv < 0){
     my_err("Must specify client or server mode!\n");
     usage();
-  } else if((cliserv == CLIENT)&&(*remote_ip == '\0')) {
+  }else if((cliserv == CLIENT)&&(*remote_ip == '\0')){
     my_err("Must specify server address!\n");
     usage();
   }
@@ -256,7 +267,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  if(cliserv == CLIENT) {
+  if(cliserv==CLIENT){
     /* Client, try to connect to server */
 
     /* assign the destination address */
@@ -265,8 +276,24 @@ int main(int argc, char *argv[]) {
     remote.sin_addr.s_addr = inet_addr(remote_ip);
     remote.sin_port = htons(port);
 
+    /* client info in the struct */
+    C = (clientudp_pack *) malloc(sizeof(clientudp_pack));
+    strcpy(C.dstip, remote.sin_addr.s_addr);
+    C.dstport = remote.sin_port;
+    
+    /* generate encryption key and IV */
+    srand(time(NULL));
+    for(i = 0; i < sizeof(C.aeskey); i++) {
+      C.aeskey[i] = rand() % 256;    /* AES-256 */
+        if(i < 2) {
+          C.iv[0] = rand() % 128;   
+        } else {
+          C.iv[(i/2) + (i%2)] = rand % 128;   
+        }
+    }
+    
     /* connection request */
-    if (connect(sock_fd, (struct sockaddr*) &remote, sizeof(remote)) < 0) {
+    if (connect(sock_fd, (struct sockaddr*) &remote, sizeof(remote)) < 0){
       perror("connect()");
       exit(1);
     }
@@ -276,9 +303,9 @@ int main(int argc, char *argv[]) {
     
   } else {
     /* Server, wait for connections */
-
+    
     /* avoid EADDRINUSE error on bind() */
-    if(setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
+    if(setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0){
       perror("setsockopt()");
       exit(1);
     }
@@ -287,12 +314,18 @@ int main(int argc, char *argv[]) {
     local.sin_family = AF_INET;
     local.sin_addr.s_addr = htonl(INADDR_ANY);
     local.sin_port = htons(port);
-    if (bind(sock_fd, (struct sockaddr*) &local, sizeof(local)) < 0) {
+    if (bind(sock_fd, (struct sockaddr*) &local, sizeof(local)) < 0){
       perror("bind()");
       exit(1);
     }
     
-    if (listen(sock_fd, 5) < 0) {
+    /* Allocate the tunnel object. */
+    T = (tun *) malloc(sizeof(tun));
+    strcpy(T.srcip, local.sin_addr.s_addr);
+    T.srcport = local.sin_port;
+    
+    
+    if (listen(sock_fd, 5) < 0){
       perror("listen()");
       exit(1);
     }
@@ -300,7 +333,7 @@ int main(int argc, char *argv[]) {
     /* wait for connection request */
     remotelen = sizeof(remote);
     memset(&remote, 0, remotelen);
-    if ((net_fd = accept(sock_fd, (struct sockaddr*)&remote, &remotelen)) < 0) {
+    if ((net_fd = accept(sock_fd, (struct sockaddr*)&remote, &remotelen)) < 0){
       perror("accept()");
       exit(1);
     }
@@ -329,7 +362,7 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    if(FD_ISSET(tap_fd, &rd_set)) {
+    if(FD_ISSET(tap_fd, &rd_set)){
       /* data from tun/tap: just read it and write it to the network */
       
       nread = cread(tap_fd, buffer, BUFSIZE);
@@ -345,7 +378,7 @@ int main(int argc, char *argv[]) {
       do_debug("TAP2NET %lu: Written %d bytes to the network\n", tap2net, nwrite);
     }
 
-    if(FD_ISSET(net_fd, &rd_set)) {
+    if(FD_ISSET(net_fd, &rd_set)){
       /* data from the network: read it, and write it to the tun/tap interface. 
        * We need to read the length first, and then the packet */
 
